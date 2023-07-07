@@ -1,0 +1,20 @@
+{{define "title"}}Homepage{{end}}
+{{define "page_title"}}
+<h1 class="dn">Curry Club</h1>
+{{end}}
+{{define "description" -}}
+Official website of the Curry Club
+{{- end}}
+
+{{define "content"}}
+  <h2 class="f0 pb5">
+    <span class="display logo">
+      <span>Curry Club</span>
+      <span>Curry Club</span>
+    </span>
+  </h2>
+
+  <div class="page-content">
+    {{ markdown .block_content }}
+  </div>
+{{end}}

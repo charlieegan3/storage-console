@@ -1,0 +1,86 @@
+.logo span {
+    position: absolute;
+}
+.logo span:nth-child(1) {
+    color: rgb(109,47,2);;
+    -webkit-text-stroke: 2px black;
+}
+
+.logo span:nth-child(2) {
+    color: rgb(157,118,0);
+    animation: animate 4s ease-in-out infinite;
+    -webkit-text-stroke: 2px black;
+}
+
+@keyframes animate {
+    0%,
+    100% {
+        clip-path: polygon(
+                        0% 45%,
+                        16% 44%,
+                        33% 50%,
+                        54% 60%,
+                        70% 61%,
+                        84% 59%,
+                        100% 52%,
+                        100% 100%,
+                        0% 100%
+        );
+    }
+
+    50% {
+        clip-path: polygon(
+                        0% 60%,
+                        15% 65%,
+                        34% 66%,
+                        51% 62%,
+                        67% 50%,
+                        84% 45%,
+                        100% 46%,
+                        100% 100%,
+                        0% 100%
+        );
+    }
+}
+
+
+.muted {
+    color: $muted-text-color;
+}
+
+.round img {
+    border-radius: 100%;
+    border: 1px solid $border-color;
+}
+
+img.external-link {
+    display: inline;
+    width: 20px;
+    vertical-align: bottom;
+    margin-bottom: 3px;
+}
+
+.tfl-blue { color: $tfl-blue }
+.tfl-red { color: $tfl-red }
+.tfl-yellow { color: $tfl-yellow }
+.tfl-green { color: $tfl-green }
+
+.loader {
+    width: 100%;
+    height: 5px;
+    position: fixed;
+    background-color: $tfl-blue-light;
+    background-image: linear-gradient(45deg, rgba(255, 255, 255, 0.25) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, 0.25) 50%, rgba(255, 255, 255, 0.25) 75%, transparent 75%, transparent);
+    background-size: 1em 1em;
+    box-sizing: border-box;
+    animation: barStripe 1s linear infinite;
+}
+
+@keyframes barStripe {
+    0% {
+        background-position: 0 0;
+    }
+    100% {
+        background-position: 1em 0;
+    }
+}

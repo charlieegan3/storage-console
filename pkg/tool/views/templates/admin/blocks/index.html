@@ -1,0 +1,53 @@
+{{define "title"}}Blocks{{end}}
+{{define "page_title"}}Blocks{{end}}
+{{define "header"}}
+  {{ include "partials/admin/menu" }}
+{{end}}
+{{define "preload"}}mouseover{{end}}
+
+{{define "content"}}
+{{ range $block := .blocks }}
+<form method="POST" action="{{ $.admin_path }}/blocks/{{ $block.Key }}">
+    <div class="mb2">
+        <p><strong>{{ $block.Key }}</strong></p>
+        <input type="hidden" value="{{ $block.Key }}"/>
+        <textarea class="code w-100" rows="20" name="content" placeholder="Content">{{ $block.Content }}</textarea>
+    </div>
+
+    <div class="">
+        <input type="submit" value="Update">
+    </div>
+</form>
+
+<details>
+    <summary>Delete</summary>
+    <form method="POST" action="{{ $.admin_path }}/blocks/{{ $block.Key }}">
+        <input type="hidden" name="_method" value="DELETE">
+        <input class="" type="submit" value="Delete">
+    </form>
+</details>
+
+<hr/>
+{{ end }}
+
+<h2>New Block</h2>
+<form method="POST" action="{{ .admin_path }}/blocks">
+    <div class="mb2">
+        <label for="key">Key</label>
+        <br>
+        <input id="key" class="w-100" type="text" name="key" placeholder="Key"/>
+    </div>
+    <div class="mb2">
+        <label for="content">Content</label>
+        <br>
+        <textarea id="content" class="code w-100" rows="20" name="content" placeholder="Content"></textarea>
+    </div>
+
+    <div class="">
+        <input type="submit" value="Create">
+    </div>
+</form>
+
+
+
+{{end}}

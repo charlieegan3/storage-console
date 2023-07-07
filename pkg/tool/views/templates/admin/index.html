@@ -1,0 +1,16 @@
+{{define "title"}}Admin{{end}}
+{{define "page_title"}}Admin{{end}}
+{{define "header"}}
+  {{ include "partials/admin/menu" }}
+{{end}}
+{{define "description" -}}
+Official website of the Curry Club
+{{- end}}
+
+{{define "content"}}
+<ul>
+  <li>
+    <a href="{{ .admin_path }}/blocks">Blocks</a>
+  </li>
+</ul>
+{{end}}

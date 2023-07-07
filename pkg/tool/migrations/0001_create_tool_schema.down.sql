@@ -1,0 +1,1 @@
+DROP SCHEMA IF EXISTS curry_club;
