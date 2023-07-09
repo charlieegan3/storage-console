@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"strconv"
+	"time"
 
 	"github.com/Jeffail/gabs/v2"
 	"github.com/charlieegan3/toolbelt/pkg/apis"
@@ -154,11 +154,9 @@ func (w *Website) HTTPAttach(router *mux.Router) error {
 			return
 		}
 
-		log.Println("beginning registration for: ", username)
+		log.Println("beginning registration for:", username)
 
-		// get user
 		user, err := userDB.GetUser(username)
-		// user doesn't exist, create new user
 		if err != nil {
 			log.Println("creating new user: ", username)
 			user = types.NewUser(username)
@@ -168,13 +166,41 @@ func (w *Website) HTTPAttach(router *mux.Router) error {
 				jsonResponse(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
+		} else {
+			// validate that the user is logged in before adding more credentials
+			cookie, err := r.Cookie("session")
+			if err == nil {
+				// validate the session
+				session, err := sessionDB.GetSession(cookie.Value)
+				if err != nil {
+					fmt.Println(err)
+					http.Redirect(w, r, "/logout", http.StatusFound)
+					return
+				}
+
+				sessionUser, err := userDB.GetUserByID(string(session.UserID))
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					w.Write([]byte(err.Error()))
+					return
+				}
+				if user.ID != sessionUser.ID {
+					w.WriteHeader(http.StatusForbidden)
+					w.Write([]byte("forbidden"))
+					return
+				}
+			} else {
+				log.Println("session missing, can't add more credentials to user")
+				w.WriteHeader(http.StatusForbidden)
+				w.Write([]byte("forbidden"))
+				return
+			}
 		}
 
 		registerOptions := func(credCreationOpts *protocol.PublicKeyCredentialCreationOptions) {
 			credCreationOpts.CredentialExcludeList = user.CredentialExcludeList()
 		}
 
-		// generate PublicKeyCredentialCreationOptions, session data
 		options, sessionData, err := web.BeginRegistration(
 			user,
 			registerOptions,
@@ -193,13 +219,37 @@ func (w *Website) HTTPAttach(router *mux.Router) error {
 		}
 
 		http.SetCookie(w, &http.Cookie{
-			Name:     "registration",
-			Value:    fmt.Sprintf("%d", sessionID),
+			Name:     "session",
+			Value:    sessionID,
 			Path:     "/",
 			SameSite: http.SameSiteStrictMode,
 		})
 
 		jsonResponse(w, options, http.StatusOK)
+	})
+
+	router.HandleFunc("/logout", func(w http.ResponseWriter, r *http.Request) {
+		// this shouldn't happen since the link is also annotated correctly
+		if r.Header.Get("HX-Preload") != "" {
+			http.Redirect(w, r, "/", http.StatusFound)
+			return
+		}
+
+		cookie, err := r.Cookie("session")
+		if err == nil {
+			http.SetCookie(w, &http.Cookie{
+				Name:    "session",
+				Value:   "",
+				Expires: time.Unix(0, 0),
+			})
+			err = sessionDB.DeleteSession(cookie.Value)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				w.Write([]byte(err.Error()))
+				return
+			}
+		}
+		http.Redirect(w, r, "/", http.StatusFound)
 	})
 
 	router.HandleFunc("/register/finish/{username}", func(w http.ResponseWriter, r *http.Request) {
@@ -223,21 +273,14 @@ func (w *Website) HTTPAttach(router *mux.Router) error {
 			return
 		}
 
-		cookie, err := r.Cookie("registration")
+		cookie, err := r.Cookie("session")
 		if err != nil {
 			log.Println("cookie:", err)
 			jsonResponse(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
-		cookieSessionID, err := strconv.Atoi(cookie.Value)
-		if err != nil {
-			log.Println("cookie:", err)
-			jsonResponse(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		sessionData, err := sessionDB.GetSession(uint64(cookieSessionID))
+		sessionData, err := sessionDB.GetSession(cookie.Value)
 		if err != nil {
 			log.Println("cookie:", err)
 			jsonResponse(w, err.Error(), http.StatusBadRequest)
@@ -253,13 +296,6 @@ func (w *Website) HTTPAttach(router *mux.Router) error {
 
 		err = userDB.AddCredentialsForUser(user, []webauthn.Credential{*credential})
 		if err != nil {
-			jsonResponse(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		err = sessionDB.DeleteSession(cookie.Value)
-		if err != nil {
-			log.Println("failed to delete session:", err)
 			jsonResponse(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -306,8 +342,8 @@ func (w *Website) HTTPAttach(router *mux.Router) error {
 		}
 
 		http.SetCookie(w, &http.Cookie{
-			Name:     "authentication",
-			Value:    fmt.Sprintf("%d", sessionID),
+			Name:     "session",
+			Value:    sessionID,
 			Path:     "/",
 			SameSite: http.SameSiteStrictMode,
 		})
@@ -339,21 +375,14 @@ func (w *Website) HTTPAttach(router *mux.Router) error {
 		}
 
 		// load the session data
-		cookie, err := r.Cookie("authentication")
+		cookie, err := r.Cookie("session")
 		if err != nil {
 			log.Println("cookie:", err)
 			jsonResponse(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
-		cookieSessionID, err := strconv.Atoi(cookie.Value)
-		if err != nil {
-			log.Println("failed to parse cookie session id:", err)
-			jsonResponse(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		sessionData, err := sessionDB.GetSession(uint64(cookieSessionID))
+		sessionData, err := sessionDB.GetSession(cookie.Value)
 		if err != nil {
 			log.Println("session:", err)
 			jsonResponse(w, err.Error(), http.StatusBadRequest)

@@ -80,8 +80,6 @@ function registerUser() {
         },
         'json')
         .then((credentialCreationOptions) => {
-            console.log("opt", credentialCreationOptions)
-            console.log("challenge")
             credentialCreationOptions.publicKey.challenge = bufferDecode(credentialCreationOptions.publicKey.challenge);
             console.log("user id")
             credentialCreationOptions.publicKey.user.id = bufferDecode(credentialCreationOptions.publicKey.user.id);
@@ -118,8 +116,7 @@ function registerUser() {
                 'json')
         })
         .then((success) => {
-            alert("successfully registered " + username + "!")
-            return
+            window.location.reload();
         })
         .catch((error) => {
             console.log(error)
@@ -143,7 +140,6 @@ function loginUser() {
         },
         'json')
         .then((credentialRequestOptions) => {
-            console.log(credentialRequestOptions)
             credentialRequestOptions.publicKey.challenge = bufferDecode(credentialRequestOptions.publicKey.challenge);
             credentialRequestOptions.publicKey.allowCredentials.forEach(function (listItem) {
                 listItem.id = bufferDecode(listItem.id)
@@ -154,8 +150,6 @@ function loginUser() {
             })
         })
         .then((assertion) => {
-            console.log(1)
-            console.log(assertion)
             let authData = assertion.response.authenticatorData;
             let clientDataJSON = assertion.response.clientDataJSON;
             let rawId = assertion.rawId;
@@ -181,8 +175,7 @@ function loginUser() {
                 'json')
         })
         .then((success) => {
-            alert("successfully logged in " + username + "!")
-            return
+            window.location.reload();
         })
         .catch((error) => {
             console.log(error)

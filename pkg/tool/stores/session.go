@@ -22,10 +22,10 @@ func NewSessionDB(db *sql.DB) *SessionDB {
 }
 
 // GetSession returns a *SessionData by the session's ID
-func (sdb *SessionDB) GetSession(sessionID uint64) (*webauthn.SessionData, error) {
+func (sdb *SessionDB) GetSession(sessionID string) (*webauthn.SessionData, error) {
 
 	var session struct {
-		ID          uint64 `db:"id"`
+		ID          string `db:"id"`
 		SessionData []byte `db:"session_data"`
 	}
 
@@ -57,20 +57,20 @@ func (sdb *SessionDB) DeleteSession(sessionID string) error {
 	return nil
 }
 
-func (sdb *SessionDB) StartSession(data *webauthn.SessionData) (uint64, error) {
+func (sdb *SessionDB) StartSession(data *webauthn.SessionData) (string, error) {
 
 	sessionData, err := json.Marshal(data)
 	if err != nil {
-		return 0, fmt.Errorf("error marshalling session data: %s", err.Error())
+		return "", fmt.Errorf("error marshalling session data: %s", err.Error())
 	}
 
-	var sessionId uint64
+	var sessionId string
 	_, err = sdb.db.Insert("curry_club.sessions").
 		Rows(goqu.Record{
 			"session_data": sessionData,
 		}).Returning("id").Executor().ScanVal(&sessionId)
 	if err != nil {
-		return 0, fmt.Errorf("error inserting session: %s", err.Error())
+		return "", fmt.Errorf("error inserting session: %s", err.Error())
 	}
 
 	return sessionId, nil

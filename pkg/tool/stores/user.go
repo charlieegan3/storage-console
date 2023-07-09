@@ -23,18 +23,18 @@ func NewUsersDB(db *sql.DB) *UserDB {
 	}
 }
 
-func (udb *UserDB) GetUser(name string) (*types.User, error) {
+func (udb *UserDB) GetUser(username string) (*types.User, error) {
 
 	var user struct {
-		ID          uint64 `db:"id"`
-		Name        string `db:"name"`
+		ID          string `db:"id"`
+		Username    string `db:"username"`
 		Credentials []byte `db:"credentials"`
 	}
 	_, err := udb.db.From("curry_club.users").
-		Where(goqu.Ex{"name": name}).
+		Where(goqu.Ex{"username": username}).
 		ScanStruct(&user)
 	if err != nil {
-		return nil, fmt.Errorf("error getting user '%s': %s", name, err.Error())
+		return nil, fmt.Errorf("error getting user '%s': %s", username, err.Error())
 	}
 
 	var credentials []webauthn.Credential
@@ -45,16 +45,16 @@ func (udb *UserDB) GetUser(name string) (*types.User, error) {
 
 	return &types.User{
 		ID:          user.ID,
-		Name:        user.Name,
+		Username:    user.Username,
 		Credentials: credentials,
 	}, nil
 }
 
-func (udb *UserDB) GetUserByID(id uint64) (*types.User, error) {
+func (udb *UserDB) GetUserByID(id string) (*types.User, error) {
 
 	var user struct {
-		ID          uint64 `db:"id"`
-		Name        string `db:"name"`
+		ID          string `db:"id"`
+		Username    string `db:"username"`
 		Credentials []byte `db:"credentials"`
 	}
 	_, err := udb.db.From("curry_club.users").
@@ -72,14 +72,14 @@ func (udb *UserDB) GetUserByID(id uint64) (*types.User, error) {
 
 	return &types.User{
 		ID:          user.ID,
-		Name:        user.Name,
+		Username:    user.Username,
 		Credentials: credentials,
 	}, nil
 }
 
 func (udb *UserDB) AddCredentialsForUser(user *types.User, credentials []webauthn.Credential) error {
 
-	if user.ID == 0 {
+	if user.ID == "" {
 		return fmt.Errorf("user has no ID")
 	}
 
@@ -95,12 +95,12 @@ func (udb *UserDB) PutUser(user *types.User) error {
 		return fmt.Errorf("error marshalling credentials: %s", err.Error())
 	}
 
-	if user.ID == 0 {
+	if user.ID == "" {
 		fmt.Println("inserting user")
 		_, err = udb.db.Insert("curry_club.users").
 			Rows(
 				goqu.Record{
-					"name":        user.Name,
+					"username":    user.Username,
 					"credentials": credentialsJSON,
 				},
 			).Returning("id").Executor().ScanVal(&user.ID)
@@ -116,7 +116,7 @@ func (udb *UserDB) PutUser(user *types.User) error {
 		Where(goqu.Ex{"id": user.ID}).
 		Set(
 			goqu.Record{
-				"name":        user.Name,
+				"username":    user.Username,
 				"credentials": credentialsJSON,
 			},
 		).Executor().Exec()

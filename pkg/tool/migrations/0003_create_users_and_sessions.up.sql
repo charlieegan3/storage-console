@@ -1,14 +1,14 @@
 SET search_path TO curry_club;
 
 create table users (
-    id serial primary key,
-    name text not null unique,
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    username text not null unique,
     credentials JSONB not null default '[]',
     created_at timestamp not null default now()
 );
 
 create table sessions (
-    id serial primary key,
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     session_data JSONB not null default '{}',
     created_at timestamp not null default now()
 );

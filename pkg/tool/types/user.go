@@ -1,24 +1,22 @@
 package types
 
 import (
-	"encoding/binary"
-
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
 )
 
 // User represents the user model
 type User struct {
-	ID          uint64
-	Name        string
+	ID          string
+	Username    string
 	Credentials []webauthn.Credential
 }
 
 // NewUser creates and returns a new User
-func NewUser(name string) *User {
+func NewUser(username string) *User {
 
 	user := &User{}
-	user.Name = name
+	user.Username = username
 	user.Credentials = []webauthn.Credential{}
 
 	return user
@@ -26,19 +24,17 @@ func NewUser(name string) *User {
 
 // WebAuthnID returns the user's ID
 func (u User) WebAuthnID() []byte {
-	buf := make([]byte, binary.MaxVarintLen64)
-	binary.PutUvarint(buf, uint64(u.ID))
-	return buf
+	return []byte(u.ID)
 }
 
 // WebAuthnName returns the user's username
 func (u User) WebAuthnName() string {
-	return u.Name
+	return u.Username
 }
 
 // WebAuthnDisplayName returns the user's display name
 func (u User) WebAuthnDisplayName() string {
-	return u.Name
+	return u.Username
 }
 
 // WebAuthnIcon is not (yet) implemented

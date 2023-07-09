@@ -20,14 +20,17 @@ Official website of the Curry Club
 
   <div>
     {{ if .logged_in }}
-      <p>Logged In: {{ .user_id }} {{ .user_name }}</p>
+      <p>
+        Logged In: {{ .user_id }} {{ .user_name }}
+        <a preload="none" href="/logout">Logout</a>
+      </p>
     {{ end }}
   </div>
 
   <h2>What is your name?</h2>
   Username:
   <br>
-  <input type="text" name="username" id="email" placeholder="i.e. foo@bar.com">
+  <input type="email" name="username" id="email" placeholder="i.e. foo@bar.com">
   <br>
   <br>
   <button onclick="registerUser()">Register</button>

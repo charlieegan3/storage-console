@@ -2,10 +2,7 @@ package public
 
 import (
 	"database/sql"
-	"encoding/binary"
 	"net/http"
-	"strconv"
-	"time"
 
 	"github.com/doug-martin/goqu/v9"
 	"github.com/foolin/goview"
@@ -38,45 +35,26 @@ func BuildIndexHandler(sessionDB *stores.SessionDB, userDB *stores.UserDB, db *s
 		}
 
 		var loggedIn bool
-		var userID uint64
+		var userID string
 		var userName string
-		cookie, err := r.Cookie("authentication")
+		cookie, err := r.Cookie("session")
 		if err == nil {
-			sessionID, err := strconv.Atoi(cookie.Value)
+			session, err := sessionDB.GetSession(cookie.Value)
 			if err != nil {
-				w.WriteHeader(http.StatusBadRequest)
-				w.Write([]byte(err.Error()))
-				return
-			}
-
-			session, err := sessionDB.GetSession(uint64(sessionID))
-			if err != nil {
-				http.SetCookie(w, &http.Cookie{
-					Name:    "authentication",
-					Value:   "",
-					Path:    "/",
-					Expires: time.Unix(0, 0),
-				})
-				http.Redirect(w, r, "/", http.StatusFound)
+				http.Redirect(w, r, "/logout", http.StatusFound)
 				return
 			}
 
 			loggedIn = true
-			var n int
-			userID, n = binary.Uvarint(session.UserID)
-			if n <= 0 {
-				w.WriteHeader(http.StatusInternalServerError)
-				w.Write([]byte(err.Error()))
-				return
-			}
 
-			user, err := userDB.GetUserByID(userID)
+			user, err := userDB.GetUserByID(string(session.UserID))
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				w.Write([]byte(err.Error()))
 				return
 			}
-			userName = user.Name
+			userName = user.Username
+			userID = user.ID
 		}
 
 		err = views.Engine.Render(
