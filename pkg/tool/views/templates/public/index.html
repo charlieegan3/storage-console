@@ -17,4 +17,19 @@ Official website of the Curry Club
   <div class="page-content">
     {{ markdown .block_content }}
   </div>
+
+  <div>
+    {{ if .logged_in }}
+      <p>Logged In: {{ .user_id }} {{ .user_name }}</p>
+    {{ end }}
+  </div>
+
+  <h2>What is your name?</h2>
+  Username:
+  <br>
+  <input type="text" name="username" id="email" placeholder="i.e. foo@bar.com">
+  <br>
+  <br>
+  <button onclick="registerUser()">Register</button>
+  <button onclick="loginUser()">Login</button>
 {{end}}

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"embed"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -13,7 +14,6 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/tdewolff/minify/v2"
 	"github.com/tdewolff/minify/v2/css"
-	"github.com/tdewolff/minify/v2/js"
 
 	"github.com/charlieegan3/curry-club/pkg/tool/utils"
 )
@@ -242,7 +242,7 @@ func BuildCSSHandler() (func(http.ResponseWriter, *http.Request), error) {
 }
 
 func BuildJSHandler() (func(http.ResponseWriter, *http.Request), error) {
-	sourceFileOrder := []string{"htmx.js", "htmx-preload.js", "script.js"}
+	sourceFileOrder := []string{"htmx.js", "htmx-preload.js", "jquery.js", "script.js"}
 
 	var bs []byte
 
@@ -259,10 +259,15 @@ func BuildJSHandler() (func(http.ResponseWriter, *http.Request), error) {
 	in := bytes.NewBuffer(bs)
 	out := bytes.NewBuffer([]byte{})
 
-	m := minify.New()
-	m.AddFunc("application/javascript", js.Minify)
+	//m := minify.New()
+	//m.AddFunc("application/javascript", js.Minify)
+	//
+	//if err := m.Minify("application/javascript", out, in); err != nil {
+	//	return nil, fmt.Errorf("failed to generate js: %s", err)
+	//}
 
-	if err := m.Minify("application/javascript", out, in); err != nil {
+	_, err := io.Copy(out, in)
+	if err != nil {
 		return nil, fmt.Errorf("failed to generate js: %s", err)
 	}
 
