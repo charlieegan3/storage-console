@@ -18,21 +18,12 @@ Official website of the Curry Club
     {{ markdown .block_content }}
   </div>
 
-  <div>
-    {{ if .logged_in }}
-      <p>
-        Logged In: {{ .user_id }} {{ .user_name }}
-        <a preload="none" href="/logout">Logout</a>
-      </p>
-    {{ end }}
+  <div class="footer flex justify-between mw4 center">
+  {{ if .logged_in }}
+    <a href="/profile">Profile</a>
+    <a href="/logout">Logout</a>
+  {{ else }}
+    <a href="/login">Login</a>
+  {{ end }}
   </div>
-
-  <h2>What is your name?</h2>
-  Username:
-  <br>
-  <input type="email" name="username" id="email" placeholder="i.e. foo@bar.com">
-  <br>
-  <br>
-  <button onclick="registerUser()">Register</button>
-  <button onclick="loginUser()">Login</button>
 {{end}}

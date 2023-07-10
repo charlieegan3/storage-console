@@ -64,12 +64,10 @@ function bufferEncode(value) {
         .replace(/=/g, "");
 }
 
-function registerUser() {
+function registerUser(username = "") {
 
-    username = $("#email").val()
-    if (username === "") {
-        alert("Please enter a username");
-        return;
+    if ($("#username").length) {
+        username = $("#username").val()
     }
 
     $.get(
@@ -81,11 +79,9 @@ function registerUser() {
         'json')
         .then((credentialCreationOptions) => {
             credentialCreationOptions.publicKey.challenge = bufferDecode(credentialCreationOptions.publicKey.challenge);
-            console.log("user id")
             credentialCreationOptions.publicKey.user.id = bufferDecode(credentialCreationOptions.publicKey.user.id);
             if (credentialCreationOptions.publicKey.excludeCredentials) {
                 for (var i = 0; i < credentialCreationOptions.publicKey.excludeCredentials.length; i++) {
-                    console.log("exclude ")
                     credentialCreationOptions.publicKey.excludeCredentials[i].id = bufferDecode(credentialCreationOptions.publicKey.excludeCredentials[i].id);
                 }
             }
@@ -116,7 +112,11 @@ function registerUser() {
                 'json')
         })
         .then((success) => {
-            window.location.reload();
+            if (window.location.pathname === "/profile") {
+                window.location.reload()
+            } else {
+                window.location = "/profile"
+            }
         })
         .catch((error) => {
             console.log(error)
@@ -126,7 +126,7 @@ function registerUser() {
 
 function loginUser() {
 
-    username = $("#email").val()
+    username = $("#username").val()
     if (username === "") {
         alert("Please enter a username");
         return;
@@ -175,7 +175,7 @@ function loginUser() {
                 'json')
         })
         .then((success) => {
-            window.location.reload();
+            window.location = "/profile"
         })
         .catch((error) => {
             console.log(error)

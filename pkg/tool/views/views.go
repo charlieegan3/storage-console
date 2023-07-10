@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/md5"
 	"embed"
+	"encoding/base64"
 	"fmt"
 	"html/template"
 	"path/filepath"
@@ -154,6 +155,9 @@ func init() {
 			},
 			"scriptETag": func() template.HTML {
 				return template.HTML(handlers.ScriptEtag)
+			},
+			"base64": func(i []byte) string {
+				return base64.StdEncoding.EncodeToString(i)
 			},
 		},
 	}

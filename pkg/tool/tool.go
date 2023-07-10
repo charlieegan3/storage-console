@@ -3,15 +3,11 @@ package tool
 import (
 	"database/sql"
 	"embed"
-	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
-	"time"
 
 	"github.com/Jeffail/gabs/v2"
 	"github.com/charlieegan3/toolbelt/pkg/apis"
-	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
 	gorillaHandlers "github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
@@ -24,7 +20,6 @@ import (
 	"github.com/charlieegan3/curry-club/pkg/tool/handlers/status"
 	"github.com/charlieegan3/curry-club/pkg/tool/middlewares"
 	"github.com/charlieegan3/curry-club/pkg/tool/stores"
-	"github.com/charlieegan3/curry-club/pkg/tool/types"
 )
 
 //go:embed migrations
@@ -83,16 +78,29 @@ func (w *Website) SetConfig(config map[string]any) error {
 func (w *Website) Jobs() ([]apis.Job, error) { return []apis.Job{}, nil }
 
 func (w *Website) HTTPAttach(router *mux.Router) error {
+	var path string
+
+	path = "webauthn.host"
+	webAuthnHost, ok := w.config.Path(path).Data().(string)
+	if !ok {
+		webAuthnHost = "localhost"
+	}
+	path = "webauthn.origin"
+	webAuthnOrigin, ok := w.config.Path(path).Data().(string)
+	if !ok {
+		webAuthnHost = "http://localhost:3000"
+	}
+
 	web, err = webauthn.New(&webauthn.Config{
 		RPDisplayName: "Curry Club",
-		RPID:          "localhost",
-		RPOrigins:     []string{"http://localhost:3000"},
+		RPID:          webAuthnHost,
+		RPOrigins:     []string{webAuthnOrigin},
 	})
 	if err != nil {
 		return fmt.Errorf("error creating webauthn: %w", err)
 	}
 
-	path := "web.auth.username"
+	path = "web.auth.username"
 	adminUsername, ok := w.config.Path(path).Data().(string)
 	if !ok {
 		adminUsername = "example"
@@ -142,273 +150,19 @@ func (w *Website) HTTPAttach(router *mux.Router) error {
 		handlers.BuildStaticHandler(),
 	).Methods("GET")
 
-	router.HandleFunc("/register/begin/{username}", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "GET" {
-			http.NotFound(w, r)
-			return
-		}
-
-		username := mux.Vars(r)["username"]
-		if username == "" {
-			http.NotFound(w, r)
-			return
-		}
-
-		log.Println("beginning registration for:", username)
-
-		user, err := userDB.GetUser(username)
-		if err != nil {
-			log.Println("creating new user: ", username)
-			user = types.NewUser(username)
-			err := userDB.PutUser(user)
-			if err != nil {
-				log.Println(err)
-				jsonResponse(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-		} else {
-			// validate that the user is logged in before adding more credentials
-			cookie, err := r.Cookie("session")
-			if err == nil {
-				// validate the session
-				session, err := sessionDB.GetSession(cookie.Value)
-				if err != nil {
-					fmt.Println(err)
-					http.Redirect(w, r, "/logout", http.StatusFound)
-					return
-				}
-
-				sessionUser, err := userDB.GetUserByID(string(session.UserID))
-				if err != nil {
-					w.WriteHeader(http.StatusInternalServerError)
-					w.Write([]byte(err.Error()))
-					return
-				}
-				if user.ID != sessionUser.ID {
-					w.WriteHeader(http.StatusForbidden)
-					w.Write([]byte("forbidden"))
-					return
-				}
-			} else {
-				log.Println("session missing, can't add more credentials to user")
-				w.WriteHeader(http.StatusForbidden)
-				w.Write([]byte("forbidden"))
-				return
-			}
-		}
-
-		registerOptions := func(credCreationOpts *protocol.PublicKeyCredentialCreationOptions) {
-			credCreationOpts.CredentialExcludeList = user.CredentialExcludeList()
-		}
-
-		options, sessionData, err := web.BeginRegistration(
-			user,
-			registerOptions,
-		)
-		if err != nil {
-			log.Println(err)
-			jsonResponse(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		sessionID, err := sessionDB.StartSession(sessionData)
-		if err != nil {
-			log.Println(err)
-			jsonResponse(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		http.SetCookie(w, &http.Cookie{
-			Name:     "session",
-			Value:    sessionID,
-			Path:     "/",
-			SameSite: http.SameSiteStrictMode,
-		})
-
-		jsonResponse(w, options, http.StatusOK)
-	})
-
-	router.HandleFunc("/logout", func(w http.ResponseWriter, r *http.Request) {
-		// this shouldn't happen since the link is also annotated correctly
-		if r.Header.Get("HX-Preload") != "" {
-			http.Redirect(w, r, "/", http.StatusFound)
-			return
-		}
-
-		cookie, err := r.Cookie("session")
-		if err == nil {
-			http.SetCookie(w, &http.Cookie{
-				Name:    "session",
-				Value:   "",
-				Expires: time.Unix(0, 0),
-			})
-			err = sessionDB.DeleteSession(cookie.Value)
-			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				w.Write([]byte(err.Error()))
-				return
-			}
-		}
-		http.Redirect(w, r, "/", http.StatusFound)
-	})
-
-	router.HandleFunc("/register/finish/{username}", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "POST" {
-			http.NotFound(w, r)
-			return
-		}
-
-		username := mux.Vars(r)["username"]
-		if username == "" {
-			http.NotFound(w, r)
-			return
-		}
-
-		log.Println("finalising registration for: ", username)
-
-		user, err := userDB.GetUser(username)
-		if err != nil {
-			log.Println(err)
-			jsonResponse(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		cookie, err := r.Cookie("session")
-		if err != nil {
-			log.Println("cookie:", err)
-			jsonResponse(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		sessionData, err := sessionDB.GetSession(cookie.Value)
-		if err != nil {
-			log.Println("cookie:", err)
-			jsonResponse(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		credential, err := web.FinishRegistration(user, *sessionData, r)
-		if err != nil {
-			log.Println("finalising: ", err)
-			jsonResponse(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		err = userDB.AddCredentialsForUser(user, []webauthn.Credential{*credential})
-		if err != nil {
-			jsonResponse(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		jsonResponse(w, "Registration Success", http.StatusOK)
-	})
-
-	router.HandleFunc("/login/begin/{username}", func(w http.ResponseWriter, r *http.Request) {
-		// get username
-		if r.Method != "GET" {
-			http.NotFound(w, r)
-			return
-		}
-
-		username := mux.Vars(r)["username"]
-		if username == "" {
-			http.NotFound(w, r)
-			return
-		}
-
-		log.Println("user: ", username, "logging in")
-
-		// get user
-		user, err := userDB.GetUser(username)
-		if err != nil {
-			log.Println(err)
-			jsonResponse(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		// generate PublicKeyCredentialRequestOptions, session data
-		options, sessionData, err := web.BeginLogin(user)
-		if err != nil {
-			log.Println(err)
-			jsonResponse(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		sessionID, err := sessionDB.StartSession(sessionData)
-		if err != nil {
-			log.Println(err)
-			jsonResponse(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		http.SetCookie(w, &http.Cookie{
-			Name:     "session",
-			Value:    sessionID,
-			Path:     "/",
-			SameSite: http.SameSiteStrictMode,
-		})
-
-		jsonResponse(w, options, http.StatusOK)
-	})
-
-	router.HandleFunc("/login/finish/{username}", func(w http.ResponseWriter, r *http.Request) {
-
-		// get username
-		if r.Method != "POST" {
-			http.NotFound(w, r)
-			return
-		}
-
-		username := mux.Vars(r)["username"]
-		if username == "" {
-			http.NotFound(w, r)
-			return
-		}
-
-		log.Println("user: ", username, "finishing logging in")
-		// get user
-		user, err := userDB.GetUser(username)
-		if err != nil {
-			log.Println(err)
-			jsonResponse(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		// load the session data
-		cookie, err := r.Cookie("session")
-		if err != nil {
-			log.Println("cookie:", err)
-			jsonResponse(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		sessionData, err := sessionDB.GetSession(cookie.Value)
-		if err != nil {
-			log.Println("session:", err)
-			jsonResponse(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		c, err := web.FinishLogin(user, *sessionData, r)
-		if err != nil {
-			log.Println(err)
-			jsonResponse(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		if c.Authenticator.CloneWarning {
-			log.Println("cloned key detected")
-			jsonResponse(w, "cloned key detected", http.StatusBadRequest)
-			return
-		}
-
-		jsonResponse(w, "Login Success", http.StatusOK)
-	})
+	router.HandleFunc("/register/begin/{username}", public.BuildRegisterUserBeginHandler(web, sessionDB, userDB, w.db)).Methods("GET")
+	router.HandleFunc("/register/finish/{username}", public.BuildRegisterUserFinishHandler(web, sessionDB, userDB, w.db)).Methods("POST")
+	router.HandleFunc("/login/begin/{username}", public.BuildLoginUserBeginHandler(web, sessionDB, userDB, w.db)).Methods("GET")
+	router.HandleFunc("/login/finish/{username}", public.BuildLoginUserFinishHandler(web, sessionDB, userDB, w.db)).Methods("POST")
+	router.HandleFunc("/login", public.BuildLoginUserHandler()).Methods("GET")
+	router.HandleFunc("/logout", public.BuildLogoutUserHandler(sessionDB)).Methods("GET")
+	router.HandleFunc("/profile", public.BuildProfileHandler(userDB)).Methods("GET")
 
 	router.HandleFunc("/", public.BuildIndexHandler(sessionDB, userDB, w.db)).Methods("GET")
 
 	router.Use(middlewares.BuildGoAwayMiddleware())
 	router.Use(gorillaHandlers.CompressHandler)
+	router.Use(middlewares.BuildSessionMiddleware(sessionDB, userDB))
 	router.NotFoundHandler = http.HandlerFunc(status.BuildNotFoundHandler(w.db))
 
 	return nil
@@ -417,20 +171,10 @@ func (w *Website) HTTPHost() string {
 	path := "web.host"
 	host, ok := w.config.Path(path).Data().(string)
 	if !ok {
-		return "example.com"
+		return "localhost"
 	}
 	return host
 }
 func (w *Website) HTTPPath() string { return "" }
 
 func (w *Website) ExternalJobsFuncSet(f func(job apis.ExternalJob) error) {}
-
-func jsonResponse(w http.ResponseWriter, d interface{}, c int) {
-	dj, err := json.Marshal(d)
-	if err != nil {
-		http.Error(w, "Error creating JSON response", http.StatusInternalServerError)
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(c)
-	fmt.Fprintf(w, "%s", dj)
-}

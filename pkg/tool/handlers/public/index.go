@@ -34,28 +34,7 @@ func BuildIndexHandler(sessionDB *stores.SessionDB, userDB *stores.UserDB, db *s
 			return
 		}
 
-		var loggedIn bool
-		var userID string
-		var userName string
-		cookie, err := r.Cookie("session")
-		if err == nil {
-			session, err := sessionDB.GetSession(cookie.Value)
-			if err != nil {
-				http.Redirect(w, r, "/logout", http.StatusFound)
-				return
-			}
-
-			loggedIn = true
-
-			user, err := userDB.GetUserByID(string(session.UserID))
-			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				w.Write([]byte(err.Error()))
-				return
-			}
-			userName = user.Username
-			userID = user.ID
-		}
+		_, loggedIn := r.Context().Value("userID").(string)
 
 		err = views.Engine.Render(
 			w,
@@ -64,8 +43,6 @@ func BuildIndexHandler(sessionDB *stores.SessionDB, userDB *stores.UserDB, db *s
 			goview.M{
 				"block_content": block.Content,
 				"logged_in":     loggedIn,
-				"user_id":       userID,
-				"user_name":     userName,
 			},
 		)
 		if err != nil {
