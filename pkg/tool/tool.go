@@ -156,6 +156,7 @@ func (w *Website) HTTPAttach(router *mux.Router) error {
 	router.HandleFunc("/login/finish/{username}", public.BuildLoginUserFinishHandler(web, sessionDB, userDB, w.db)).Methods("POST")
 	router.HandleFunc("/login", public.BuildLoginUserHandler()).Methods("GET")
 	router.HandleFunc("/logout", public.BuildLogoutUserHandler(sessionDB)).Methods("GET")
+	router.HandleFunc("/register", public.BuildRegisterUserHandler()).Methods("GET")
 	router.HandleFunc("/profile", public.BuildProfileHandler(userDB)).Methods("GET")
 
 	router.HandleFunc("/", public.BuildIndexHandler(sessionDB, userDB, w.db)).Methods("GET")

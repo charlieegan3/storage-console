@@ -1,15 +1,11 @@
-{{define "title"}}Login{{end}}
+{{define "title"}}Register{{end}}
 {{define "page_title"}}
-Login
+Register
 {{end}}
 {{define "description" }}{{ end}}
 
 {{define "content"}}
 <label for="username">Username</label>
 <input type="text" name="username" id="username" placeholder="foobar">
-<button onclick="loginUser()">Login</button>
-
-<p>
-    <a href="/register">Register</a>
-</p>
+<button onclick="registerUser()">Register</button>
 {{end}}

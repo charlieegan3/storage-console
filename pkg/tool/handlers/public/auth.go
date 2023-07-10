@@ -47,6 +47,27 @@ func BuildProfileHandler(userDB *stores.UserDB) func(http.ResponseWriter, *http.
 	}
 }
 
+func BuildRegisterUserHandler() func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		_, ok := r.Context().Value("userID").(string)
+		if ok {
+			http.Redirect(w, r, "/profile", http.StatusFound)
+			return
+		}
+
+		err := views.Engine.Render(
+			w,
+			http.StatusOK,
+			"public/register",
+			goview.M{},
+		)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(err.Error()))
+		}
+	}
+}
+
 func BuildLoginUserHandler() func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		_, ok := r.Context().Value("userID").(string)
