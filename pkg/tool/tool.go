@@ -85,16 +85,16 @@ func (w *Website) HTTPAttach(router *mux.Router) error {
 	if !ok {
 		webAuthnHost = "localhost"
 	}
-	path = "webauthn.origin"
-	webAuthnOrigin, ok := w.config.Path(path).Data().(string)
+	path = "webauthn.origins"
+	webAuthnOrigins, ok := w.config.Path(path).Data().([]string)
 	if !ok {
-		webAuthnHost = "http://localhost:3000"
+		webAuthnOrigins = []string{"http://localhost:3000"}
 	}
 
 	web, err = webauthn.New(&webauthn.Config{
 		RPDisplayName: "Curry Club",
 		RPID:          webAuthnHost,
-		RPOrigins:     []string{webAuthnOrigin},
+		RPOrigins:     webAuthnOrigins,
 	})
 	if err != nil {
 		return fmt.Errorf("error creating webauthn: %w", err)
