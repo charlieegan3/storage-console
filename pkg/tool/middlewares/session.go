@@ -2,7 +2,6 @@ package middlewares
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -33,8 +32,8 @@ func BuildSessionMiddleware(sessionDB *stores.SessionDB, userDB *stores.UserDB) 
 
 				// user did not complete registration
 				if len(user.Credentials) == 0 &&
-					!strings.HasPrefix(r.URL.Path, "/register/finish") {
-					fmt.Println(r.URL.Path)
+					!strings.HasPrefix(r.URL.Path, "/register/") {
+					log.Printf("user did not complete registration %s, deleting...", user.ID)
 					err := userDB.DeleteUserByID(user.ID)
 					if err != nil {
 						log.Printf("error deleting user: %s", err.Error())

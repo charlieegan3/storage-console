@@ -132,7 +132,7 @@ func BuildRegisterUserBeginHandler(web *webauthn.WebAuthn, sessionDB *stores.Ses
 
 		user, err := userDB.GetUser(username)
 		if err != nil {
-			log.Println("creating new user: ", username)
+			log.Println("creating new user:", username)
 			user = types.NewUser(username)
 			err := userDB.PutUser(user)
 			if err != nil {

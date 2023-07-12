@@ -73,9 +73,7 @@ function registerUser(username = "") {
     $.get(
         '/register/begin/' + username,
         null,
-        function (data) {
-            return data
-        },
+        function (data) { return data },
         'json')
         .then((credentialCreationOptions) => {
             credentialCreationOptions.publicKey.challenge = bufferDecode(credentialCreationOptions.publicKey.challenge);
@@ -119,8 +117,9 @@ function registerUser(username = "") {
             }
         })
         .catch((error) => {
+            console.log(error)
             console.error(error)
-            $("#error").text(error);
+            $("#error").text(JSON.stringify(error));
             $("#error").removeClass("dn");
         })
 }
@@ -147,6 +146,7 @@ function loginUser() {
             });
 
             return navigator.credentials.get({
+                mediation: 'conditional',
                 publicKey: credentialRequestOptions.publicKey
             })
         })
@@ -180,7 +180,7 @@ function loginUser() {
         })
         .catch((error) => {
             console.error(error)
-            $("#error").text(error);
+            $("#error").text(JSON.stringify(error));
             $("#error").removeClass("dn");
         })
 }
