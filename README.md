@@ -7,4 +7,3 @@
 Complete list of Curry Club™ approved vendors:
 - [The Tempeh Man](https://www.thetempehman.com) ([Map](https://maps.app.goo.gl/ZwZoKQp5uxtRCtf37))
 
-
