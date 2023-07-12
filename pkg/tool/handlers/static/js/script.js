@@ -120,7 +120,8 @@ function registerUser(username = "") {
         })
         .catch((error) => {
             console.error(error)
-            alert(error)
+            $("#error").text(error);
+            $("#error").removeClass("dn");
         })
 }
 
@@ -179,6 +180,7 @@ function loginUser() {
         })
         .catch((error) => {
             console.error(error)
-            alert(error)
+            $("#error").text(error);
+            $("#error").removeClass("dn");
         })
 }

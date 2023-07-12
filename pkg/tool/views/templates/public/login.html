@@ -5,6 +5,9 @@ Login
 {{define "description" }}{{ end}}
 
 {{define "content"}}
+
+<p id="error" class="dn"></p>
+
 <label for="username">Username</label>
 <input type="text" name="username" autocomplete="username webauthn" id="username" placeholder="foobar">
 <button onclick="loginUser()">Login</button>
