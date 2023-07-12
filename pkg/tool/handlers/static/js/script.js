@@ -119,8 +119,8 @@ function registerUser(username = "") {
             }
         })
         .catch((error) => {
-            console.log(error)
-            alert("failed to register " + username)
+            console.error(error)
+            alert(error)
         })
 }
 

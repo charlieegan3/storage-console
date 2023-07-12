@@ -96,7 +96,6 @@ func (udb *UserDB) PutUser(user *types.User) error {
 	}
 
 	if user.ID == "" {
-		fmt.Println("inserting user")
 		_, err = udb.db.Insert("curry_club.users").
 			Rows(
 				goqu.Record{
@@ -111,7 +110,6 @@ func (udb *UserDB) PutUser(user *types.User) error {
 		return nil
 	}
 
-	fmt.Println("updating user")
 	res, err := udb.db.Update("curry_club.users").
 		Where(goqu.Ex{"id": user.ID}).
 		Set(
