@@ -93,7 +93,6 @@ func BuildLogoutUserHandler(sessionDB *stores.SessionDB) func(http.ResponseWrite
 	return func(w http.ResponseWriter, r *http.Request) {
 		// this shouldn't happen since the link is also annotated correctly
 		if r.Header.Get("HX-Preload") != "" {
-			http.Redirect(w, r, "/", http.StatusFound)
 			return
 		}
 

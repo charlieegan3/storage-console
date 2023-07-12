@@ -178,7 +178,7 @@ function loginUser() {
             window.location = "/profile"
         })
         .catch((error) => {
-            console.log(error)
-            alert("failed to login " + username)
+            console.error(error)
+            alert(error)
         })
 }

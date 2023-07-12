@@ -77,6 +77,17 @@ func (udb *UserDB) GetUserByID(id string) (*types.User, error) {
 	}, nil
 }
 
+func (udb *UserDB) DeleteUserByID(id string) error {
+
+	_, err := udb.db.Delete("curry_club.users").
+		Where(goqu.Ex{"id": id}).Executor().Exec()
+	if err != nil {
+		return fmt.Errorf("error deleting user '%d': %s", id, err.Error())
+	}
+
+	return nil
+}
+
 func (udb *UserDB) AddCredentialsForUser(user *types.User, credentials []webauthn.Credential) error {
 
 	if user.ID == "" {
