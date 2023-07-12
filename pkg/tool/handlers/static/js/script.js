@@ -93,7 +93,7 @@ function registerUser(username = "") {
             let clientDataJSON = credential.response.clientDataJSON;
             let rawId = credential.rawId;
 
-            $.post(
+            return $.post(
                 '/register/finish/' + username,
                 JSON.stringify({
                     id: credential.id,
@@ -146,7 +146,6 @@ function loginUser() {
             });
 
             return navigator.credentials.get({
-                mediation: 'conditional',
                 publicKey: credentialRequestOptions.publicKey
             })
         })
@@ -157,7 +156,7 @@ function loginUser() {
             let sig = assertion.response.signature;
             let userHandle = assertion.response.userHandle;
 
-            $.post(
+            return $.post(
                 '/login/finish/' + username,
                 JSON.stringify({
                     id: assertion.id,

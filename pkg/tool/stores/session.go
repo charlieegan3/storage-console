@@ -22,27 +22,28 @@ func NewSessionDB(db *sql.DB) *SessionDB {
 }
 
 // GetSession returns a *SessionData by the session's ID
-func (sdb *SessionDB) GetSession(sessionID string) (*webauthn.SessionData, error) {
+func (sdb *SessionDB) GetSession(sessionID string) (*webauthn.SessionData, bool, error) {
 
 	var session struct {
-		ID          string `db:"id"`
-		SessionData []byte `db:"session_data"`
+		ID            string `db:"id"`
+		SessionData   []byte `db:"session_data"`
+		Authenticated bool   `db:"authenticated"`
 	}
 
-	_, err := sdb.db.From("curry_club.sessions").Select("id", "session_data").
+	_, err := sdb.db.From("curry_club.sessions").Select("id", "session_data", "authenticated").
 		Where(goqu.Ex{"id": sessionID}).
 		ScanStruct(&session)
 	if err != nil {
-		return nil, fmt.Errorf("error getting session '%s': %s", sessionID, err.Error())
+		return nil, false, fmt.Errorf("error getting session '%s': %s", sessionID, err.Error())
 	}
 
 	var sessionData webauthn.SessionData
 	err = json.Unmarshal(session.SessionData, &sessionData)
 	if err != nil {
-		return nil, fmt.Errorf("error unmarshalling session data: %s", err.Error())
+		return nil, false, fmt.Errorf("error unmarshalling session data: %s", err.Error())
 	}
 
-	return &sessionData, nil
+	return &sessionData, session.Authenticated, nil
 }
 
 func (sdb *SessionDB) DeleteSession(sessionID string) error {
@@ -74,4 +75,27 @@ func (sdb *SessionDB) StartSession(data *webauthn.SessionData) (string, error) {
 	}
 
 	return sessionId, nil
+}
+
+func (sdb *SessionDB) AuthenticateSession(sessionID string) error {
+
+	res, err := sdb.db.Update("curry_club.sessions").
+		Where(goqu.Ex{"id": sessionID}).
+		Set(
+			goqu.Record{
+				"authenticated": true,
+			},
+		).Executor().Exec()
+	if err != nil {
+		return fmt.Errorf("error authenticating session: %s", err.Error())
+	}
+	rowsAf, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("error getting session affected: %s", err.Error())
+	}
+	if rowsAf == 0 {
+		return fmt.Errorf("no session updated")
+	}
+
+	return nil
 }

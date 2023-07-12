@@ -136,7 +136,7 @@ func BuildRegisterUserBeginHandler(web *webauthn.WebAuthn, sessionDB *stores.Ses
 			user = types.NewUser(username)
 			err := userDB.PutUser(user)
 			if err != nil {
-				log.Println(err)
+				log.Println("failed to create user:", err)
 				jsonResponse(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
@@ -145,20 +145,29 @@ func BuildRegisterUserBeginHandler(web *webauthn.WebAuthn, sessionDB *stores.Ses
 			cookie, err := r.Cookie("session")
 			if err == nil {
 				// validate the session
-				session, err := sessionDB.GetSession(cookie.Value)
+				session, authd, err := sessionDB.GetSession(cookie.Value)
 				if err != nil {
-					fmt.Println(err)
+					fmt.Println("failed to load session from database: ", err)
 					http.Redirect(w, r, "/logout", http.StatusFound)
+					return
+				}
+
+				if !authd {
+					log.Println("session not authenticated")
+					w.WriteHeader(http.StatusForbidden)
+					w.Write([]byte("forbidden"))
 					return
 				}
 
 				sessionUser, err := userDB.GetUserByID(string(session.UserID))
 				if err != nil {
+					log.Println("failed to load user from database: ", err)
 					w.WriteHeader(http.StatusInternalServerError)
 					w.Write([]byte(err.Error()))
 					return
 				}
 				if user.ID != sessionUser.ID {
+					log.Println("session user doesn't match user")
 					w.WriteHeader(http.StatusForbidden)
 					w.Write([]byte("forbidden"))
 					return
@@ -180,14 +189,14 @@ func BuildRegisterUserBeginHandler(web *webauthn.WebAuthn, sessionDB *stores.Ses
 			registerOptions,
 		)
 		if err != nil {
-			log.Println(err)
+			log.Println("failed to begin registration", err)
 			jsonResponse(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
 		sessionID, err := sessionDB.StartSession(sessionData)
 		if err != nil {
-			log.Println(err)
+			log.Println("failed to create database session", err)
 			jsonResponse(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -216,38 +225,45 @@ func BuildRegisterUserFinishHandler(web *webauthn.WebAuthn, sessionDB *stores.Se
 			return
 		}
 
-		log.Println("finalising registration for: ", username)
+		log.Println("finishing registration for: ", username)
 
 		user, err := userDB.GetUser(username)
 		if err != nil {
-			log.Println(err)
+			log.Println("failed to find user", err)
 			jsonResponse(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
 		cookie, err := r.Cookie("session")
 		if err != nil {
-			log.Println("cookie:", err)
+			log.Println("failed to get cookie", err)
 			jsonResponse(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
-		sessionData, err := sessionDB.GetSession(cookie.Value)
+		sessionData, _, err := sessionDB.GetSession(cookie.Value)
 		if err != nil {
-			log.Println("cookie:", err)
+			log.Println("failed to get session", err)
 			jsonResponse(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
 		credential, err := web.FinishRegistration(user, *sessionData, r)
 		if err != nil {
-			log.Println("finalising: ", err)
+			log.Println("failed to complete registration: ", err)
 			jsonResponse(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
 		err = userDB.AddCredentialsForUser(user, []webauthn.Credential{*credential})
 		if err != nil {
+			jsonResponse(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		err = sessionDB.AuthenticateSession(cookie.Value)
+		if err != nil {
+			log.Printf("failed to authenticate session: %s", err)
 			jsonResponse(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -322,10 +338,9 @@ func BuildLoginUserFinishHandler(web *webauthn.WebAuthn, sessionDB *stores.Sessi
 		}
 
 		log.Println("user: ", username, "finishing logging in")
-		// get user
 		user, err := userDB.GetUser(username)
 		if err != nil {
-			log.Println(err)
+			log.Printf("failed to get user: %s", err)
 			jsonResponse(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -333,21 +348,21 @@ func BuildLoginUserFinishHandler(web *webauthn.WebAuthn, sessionDB *stores.Sessi
 		// load the session data
 		cookie, err := r.Cookie("session")
 		if err != nil {
-			log.Println("cookie:", err)
+			log.Printf("failed to get session cookie: %s", err)
 			jsonResponse(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
-		sessionData, err := sessionDB.GetSession(cookie.Value)
+		sessionData, _, err := sessionDB.GetSession(cookie.Value)
 		if err != nil {
-			log.Println("session:", err)
+			log.Printf("failed to get session data: %s", err)
 			jsonResponse(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
 		c, err := web.FinishLogin(user, *sessionData, r)
 		if err != nil {
-			log.Println(err)
+			log.Printf("failed to finish login: %s", err)
 			jsonResponse(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -355,6 +370,13 @@ func BuildLoginUserFinishHandler(web *webauthn.WebAuthn, sessionDB *stores.Sessi
 		if c.Authenticator.CloneWarning {
 			log.Println("cloned key detected")
 			jsonResponse(w, "cloned key detected", http.StatusBadRequest)
+			return
+		}
+
+		err = sessionDB.AuthenticateSession(cookie.Value)
+		if err != nil {
+			log.Printf("failed to authenticate session: %s", err)
+			jsonResponse(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
