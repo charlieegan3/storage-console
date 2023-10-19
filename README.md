@@ -1,3 +1,5 @@
+[offish logo for curry club](./logo.jpg)
+
 ## When is Curry Club?
 12:00 sharp, every Tuesday
 
