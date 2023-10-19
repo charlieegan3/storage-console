@@ -1,4 +1,4 @@
-<img style="margin: 0 auto" width="300px" alt="offish logo for curry club" src="./logo.jpg"></a>
+<img style="margin: 0 auto" width="300px" alt="offish logo for curry club" src="./logo.jpg"/>
 
 ## When is Curry Club?
 12:00 sharp, every Tuesday
