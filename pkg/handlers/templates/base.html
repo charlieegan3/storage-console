@@ -1,0 +1,27 @@
+{{- define "base" -}}
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+    <title>{{- template "title" . -}}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/styles.css?etag={{ .Opts.EtagStyles }}">
+    <script src="/script.js?etag={{ .Opts.EtagScript }}"></script>
+</head>
+
+<body>
+
+<span id="loader" class="mt0 loader dn"></span>
+
+<div class="container w-100 h-100 pa2 pa4-ns">
+
+    <div id="message" class="dn pa3 ba b--dark-blue bw1 mt1 br2 dark-blue"></div>
+    <div id="error" class="dn pa3 ba b--dark-red bw1 mt1 br2 dark-red"></div>
+
+    {{- template "content" . -}}
+
+</div>
+
+</body>
+</html>
+{{- end -}}
