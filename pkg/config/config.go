@@ -14,6 +14,7 @@ type Config struct {
 type Server struct {
 	Port    int    `yaml:"port"`
 	Address string `yaml:"address"`
+	DevMode bool   `yaml:"dev_mode"`
 }
 
 type WebAuthn struct {

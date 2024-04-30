@@ -6,12 +6,12 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/charlieegan3/storage-console/pkg/handlers/public"
+	"github.com/charlieegan3/storage-console/pkg/handlers"
 	"github.com/charlieegan3/storage-console/pkg/stores"
 )
 
 func BuildSessionMiddleware(sessionDB *stores.SessionDB, userDB *stores.UserDB) func(http.Handler) http.Handler {
-	logoutHandler := public.BuildLogoutUserHandler(sessionDB)
+	logoutHandler := handlers.BuildLogoutUserHandler(sessionDB)
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

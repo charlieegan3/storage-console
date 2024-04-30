@@ -13,7 +13,7 @@ import (
 	"github.com/charlieegan3/storage-console/pkg/utils"
 )
 
-func TestNewServer(t *testing.T) {
+func TestSignupFlow(t *testing.T) {
 	var err error
 	ctx := context.Background()
 
@@ -61,6 +61,7 @@ func TestNewServer(t *testing.T) {
 		}
 	}
 
+	// 1. test the index page links
 	req, err := http.NewRequest(
 		"GET",
 		fmt.Sprintf("http://localhost:%d/", port),
@@ -86,7 +87,60 @@ func TestNewServer(t *testing.T) {
 		t.Fatalf("unexpected status code: %d", resp.StatusCode)
 	}
 
-	if !strings.Contains(string(bodyBs), "Storage Console") {
+	if !strings.Contains(string(bodyBs), "Register") {
 		t.Fatalf("unexpected body: %s", bodyBs)
 	}
+
+	// 2. test the register page
+	req, err = http.NewRequest(
+		"GET",
+		fmt.Sprintf("http://localhost:%d/register", port),
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	resp, err = client.Do(req)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	bodyBs, err = io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		t.Logf("body: %s", bodyBs)
+		t.Fatalf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	if !strings.Contains(string(bodyBs), "Username") {
+		t.Fatalf("unexpected body: %s", bodyBs)
+	}
+
+	// 3. test the register page with a post
+	req, err = http.NewRequest(
+		"GET",
+		fmt.Sprintf("http://localhost:%d/register/begin/exampleuser", port),
+		nil,
+	)
+	req.Header.Add("Accept", "application/json")
+
+	resp, err = client.Do(req)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	bodyBs, err = io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		t.Logf("body: %s", bodyBs)
+		t.Fatalf("unexpected status code: %d", resp.StatusCode)
+	}
+
 }

@@ -1,6 +1,7 @@
-package public
+package handlers
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -13,13 +14,19 @@ import (
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/gorilla/mux"
 
-	"github.com/charlieegan3/storage-console/pkg/handlers"
 	"github.com/charlieegan3/storage-console/pkg/stores"
 	"github.com/charlieegan3/storage-console/pkg/types"
 )
 
-func BuildProfileHandler(userDB *stores.UserDB, opts *handlers.Options) (func(http.ResponseWriter, *http.Request), error) {
-	tmpl, err := template.ParseFS(handlers.Templates, "templates/public/profile.html", "templates/base.html")
+func Auth(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), "foo", "bar")
+		h.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+func BuildProfileHandler(userDB *stores.UserDB, opts *Options) (func(http.ResponseWriter, *http.Request), error) {
+	tmpl, err := template.ParseFS(Templates, "templates/public/profile.html", "templates/base.html")
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse templates: %s", err)
 	}
@@ -39,7 +46,7 @@ func BuildProfileHandler(userDB *stores.UserDB, opts *handlers.Options) (func(ht
 
 		err = tmpl.ExecuteTemplate(w, "base", struct {
 			User *types.User
-			Opts *handlers.Options
+			Opts *Options
 		}{User: user, Opts: opts})
 		if err != nil {
 			http.Error(w, fmt.Sprintf("failed to render template: %s", err), http.StatusInternalServerError)
@@ -48,8 +55,8 @@ func BuildProfileHandler(userDB *stores.UserDB, opts *handlers.Options) (func(ht
 	}, nil
 }
 
-func BuildRegisterUserHandler(opts *handlers.Options) (func(http.ResponseWriter, *http.Request), error) {
-	tmpl, err := template.ParseFS(handlers.Templates, "templates/public/register.html", "templates/base.html")
+func BuildRegisterUserHandler(opts *Options) (func(http.ResponseWriter, *http.Request), error) {
+	tmpl, err := template.ParseFS(Templates, "templates/register.html", "templates/base.html")
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse templates: %s", err)
 	}
@@ -61,7 +68,9 @@ func BuildRegisterUserHandler(opts *handlers.Options) (func(http.ResponseWriter,
 			return
 		}
 
-		err := tmpl.ExecuteTemplate(w, "base", nil)
+		err := tmpl.ExecuteTemplate(w, "base", struct{ Opts *Options }{
+			Opts: opts,
+		})
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Write([]byte(err.Error()))
@@ -69,8 +78,8 @@ func BuildRegisterUserHandler(opts *handlers.Options) (func(http.ResponseWriter,
 	}, nil
 }
 
-func BuildLoginUserHandler(opts *handlers.Options) (func(http.ResponseWriter, *http.Request), error) {
-	tmpl, err := template.ParseFS(handlers.Templates, "templates/public/login.html", "templates/base.html")
+func BuildLoginUserHandler(opts *Options) (func(http.ResponseWriter, *http.Request), error) {
+	tmpl, err := template.ParseFS(Templates, "templates/login.html", "templates/base.html")
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse templates: %s", err)
 	}
@@ -82,7 +91,7 @@ func BuildLoginUserHandler(opts *handlers.Options) (func(http.ResponseWriter, *h
 		}
 
 		err := tmpl.ExecuteTemplate(w, "base", struct {
-			Opts *handlers.Options
+			Opts *Options
 		}{Opts: opts})
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -116,7 +125,11 @@ func BuildLogoutUserHandler(sessionDB *stores.SessionDB) func(http.ResponseWrite
 	}
 }
 
-func BuildRegisterUserBeginHandler(web *webauthn.WebAuthn, sessionDB *stores.SessionDB, userDB *stores.UserDB, db *sql.DB) func(http.ResponseWriter, *http.Request) {
+func BuildRegisterUserBeginHandler(
+	web *webauthn.WebAuthn,
+	sessionDB *stores.SessionDB,
+	userDB *stores.UserDB,
+) func(http.ResponseWriter, *http.Request) {
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "GET" {
