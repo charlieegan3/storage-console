@@ -24,12 +24,9 @@ func TestNewServer(t *testing.T) {
 
 	serverConfig := &config.Config{
 		Server: config.Server{
+			DevMode: true, // needed to pass auth middleware
 			Port:    port,
 			Address: "localhost",
-		},
-		WebAuthn: config.WebAuthn{
-			Host:    "example.com",
-			Origins: []string{"http://example.com", "http://foo.example.com"},
 		},
 	}
 

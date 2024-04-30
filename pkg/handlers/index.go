@@ -19,15 +19,12 @@ func BuildIndexHandler(opts *Options) (func(http.ResponseWriter, *http.Request),
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
-
 		buf := bytes.NewBuffer([]byte{})
 
 		err := tmpl.ExecuteTemplate(buf, "base", struct {
-			Opts     *Options
-			LoggedIn bool
+			Opts *Options
 		}{
-			Opts:     opts,
-			LoggedIn: r.Context().Value("userID") != nil,
+			Opts: opts,
 		})
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -41,6 +38,5 @@ func BuildIndexHandler(opts *Options) (func(http.ResponseWriter, *http.Request),
 			w.Write([]byte(err.Error()))
 			return
 		}
-
 	}, nil
 }
