@@ -4,3 +4,6 @@ dev_server:
 
 watch_test:
 	find . | grep $(FILE_PATTERN) | entr -c go test ./pkg/...
+
+watch_lint:
+	find . | grep $(FILE_PATTERN) | entr -c golangci-lint run ./...

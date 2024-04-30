@@ -10,9 +10,14 @@ func BuildAuth(h http.Handler, opts *handlers.Options) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if opts.DevMode {
 			h.ServeHTTP(w, r)
+			return
 		}
 
-		w.Write([]byte("TODO"))
+		_, err := w.Write([]byte("TODO"))
+		if err != nil && opts.LoggerError != nil {
+			opts.LoggerError.Println(err)
+		}
+
 		w.WriteHeader(http.StatusUnauthorized)
 	})
 }
