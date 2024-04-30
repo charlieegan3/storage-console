@@ -7,19 +7,13 @@ import (
 )
 
 type Config struct {
-	Server   Server   `yaml:"server"`
-	WebAuthn WebAuthn `yaml:"webauthn"`
+	Server Server `yaml:"server"`
 }
 
 type Server struct {
 	Port    int    `yaml:"port"`
 	Address string `yaml:"address"`
 	DevMode bool   `yaml:"dev_mode"`
-}
-
-type WebAuthn struct {
-	Host    string   `yaml:"host"`
-	Origins []string `yaml:"origins"`
 }
 
 func LoadConfig(rawConfig io.Reader) (*Config, error) {

@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/charlieegan3/storage-console/pkg/handlers"
+	"github.com/charlieegan3/storage-console/pkg/middlewares"
 )
 
 func newMux(opts *handlers.Options) (*http.ServeMux, error) {
@@ -28,9 +29,18 @@ func newMux(opts *handlers.Options) (*http.ServeMux, error) {
 		return nil, fmt.Errorf("failed to build index handler: %s", err)
 	}
 
-	mux.HandleFunc("/script.js", scriptHandler)
-	mux.HandleFunc("/styles.css", stylesHandler)
-	mux.Handle("/", http.HandlerFunc(indexHandler))
+	mux.Handle(
+		"/script.js",
+		middlewares.BuildAuth(http.HandlerFunc(scriptHandler), opts),
+	)
+	mux.Handle(
+		"/styles.css",
+		middlewares.BuildAuth(http.HandlerFunc(stylesHandler), opts),
+	)
+	mux.Handle(
+		"/",
+		middlewares.BuildAuth(http.HandlerFunc(indexHandler), opts),
+	)
 
 	return mux, nil
 }
