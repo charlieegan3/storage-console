@@ -28,22 +28,9 @@ func newMux(opts *handlers.Options) (*http.ServeMux, error) {
 		return nil, fmt.Errorf("failed to build index handler: %s", err)
 	}
 
-	registerHandler, err := handlers.BuildRegisterUserHandler(opts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build register handler: %s", err)
-	}
-
 	mux.HandleFunc("/script.js", scriptHandler)
 	mux.HandleFunc("/styles.css", stylesHandler)
-	mux.Handle("/", handlers.Auth(http.HandlerFunc(indexHandler)))
-	//mux.Handle(
-	//	"/register/begin",
-	//	handlers.Auth(http.HandlerFunc(
-	//		handlers.BuildRegisterUserBeginHandler(
-	//			opts.WebAuthn,
-	//		)),
-	//	))
-	mux.Handle("/register", handlers.Auth(http.HandlerFunc(registerHandler)))
+	mux.Handle("/", http.HandlerFunc(indexHandler))
 
 	return mux, nil
 }
