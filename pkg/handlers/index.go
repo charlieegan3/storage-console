@@ -28,14 +28,20 @@ func BuildIndexHandler(opts *Options) (func(http.ResponseWriter, *http.Request),
 		})
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(err.Error()))
+			_, err = w.Write([]byte(err.Error()))
+			if err != nil && opts.LoggerError != nil {
+				opts.LoggerError.Println(err)
+			}
 			return
 		}
 
 		_, err = io.Copy(w, buf)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(err.Error()))
+			_, err = w.Write([]byte(err.Error()))
+			if err != nil && opts.LoggerError != nil {
+				opts.LoggerError.Println(err)
+			}
 			return
 		}
 	}, nil

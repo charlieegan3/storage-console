@@ -33,7 +33,13 @@ func main() {
 		log.Fatalf("error creating server: %v", err)
 	}
 
-	log.Println(fmt.Sprintf("Starting server on http://%s:%d", cfg.Server.Address, cfg.Server.Port))
+	if logger := cfg.Server.LoggerInfo; logger != nil {
+		logger.Printf(
+			"Starting server on http://%s:%d\n",
+			cfg.Server.Address,
+			cfg.Server.Port,
+		)
+	}
 
 	ctx := context.Background()
 

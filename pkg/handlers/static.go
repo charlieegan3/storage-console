@@ -37,7 +37,10 @@ func BuildFaviconHandler(opts *Options) (handler func(http.ResponseWriter, *http
 			utils.SetCacheControl(w, "public, max-age=3600")
 		}
 
-		w.Write(bs)
+		_, err = w.Write(bs)
+		if err != nil && opts.LoggerError != nil {
+			opts.LoggerError.Println(err)
+		}
 	}
 }
 
@@ -100,7 +103,10 @@ func BuildFontHandler(opts *Options) (handler func(http.ResponseWriter, *http.Re
 			utils.SetCacheControl(w, "public, max-age=3600")
 		}
 
-		w.Write(ff.Bytes)
+		_, err = w.Write(ff.Bytes)
+		if err != nil && opts.LoggerError != nil {
+			opts.LoggerError.Println(err)
+		}
 	}
 }
 
@@ -164,7 +170,10 @@ func BuildCSSHandler(opts *Options) (string, func(http.ResponseWriter, *http.Req
 			utils.SetCacheControl(w, "public, max-age=31622400")
 		}
 
-		w.Write(out.Bytes())
+		_, err := w.Write(out.Bytes())
+		if err != nil && opts.LoggerError != nil {
+			opts.LoggerError.Println(err)
+		}
 	}, nil
 }
 
@@ -216,6 +225,9 @@ func BuildJSHandler(opts *Options) (string, func(http.ResponseWriter, *http.Requ
 			utils.SetCacheControl(w, "public, max-age=31622400")
 		}
 
-		w.Write(out.Bytes())
+		_, err := w.Write(out.Bytes())
+		if err != nil && opts.LoggerError != nil {
+			opts.LoggerError.Println(err)
+		}
 	}, nil
 }
