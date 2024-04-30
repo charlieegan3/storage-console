@@ -1,103 +1,63 @@
 package main
 
 import (
+	"context"
 	"fmt"
-	"net/http"
+	"log"
+	"os"
+	"os/signal"
+	"syscall"
 
-	"github.com/go-webauthn/webauthn/webauthn"
-
-	"github.com/charlieegan3/storage-console/pkg/handlers/public"
-	"github.com/charlieegan3/storage-console/pkg/middlewares"
-	"github.com/charlieegan3/storage-console/pkg/stores"
+	"github.com/charlieegan3/storage-console/pkg/config"
+	"github.com/charlieegan3/storage-console/pkg/server"
 )
 
 func main() {
-	var path string
 
-	path = "webauthn.host"
-	webAuthnHost, ok := w.config.Path(path).Data().(string)
-	if !ok {
-		webAuthnHost = "localhost"
-	}
-	path = "webauthn.origins"
-	webAuthnOrigins, ok := w.config.Path(path).Data().([]string)
-	if !ok {
-		webAuthnOrigins = []string{"http://localhost:3000"}
+	if len(os.Args) != 2 {
+		log.Fatal("Please provide config as first arg")
 	}
 
-	web, err = webauthn.New(&webauthn.Config{
-		RPDisplayName: "Curry Club",
-		RPID:          webAuthnHost,
-		RPOrigins:     webAuthnOrigins,
-	})
+	configFile, err := os.OpenFile(os.Args[1], os.O_RDONLY, 0644)
 	if err != nil {
-		return fmt.Errorf("error creating webauthn: %w", err)
+		log.Fatalf("error reading config file: %v", err)
 	}
 
-	path = "web.auth.username"
-	adminUsername, ok := w.config.Path(path).Data().(string)
-	if !ok {
-		adminUsername = "example"
-	}
-
-	path = "web.auth.password"
-	adminPassword, ok := w.config.Path(path).Data().(string)
-	if !ok {
-		adminPassword = "example"
-	}
-
-	sessionDB := stores.NewSessionDB(w.db)
-	userDB := stores.NewUsersDB(w.db)
-
-	router.StrictSlash(true)
-	adminRouter := router.PathPrefix(w.adminPath).Subrouter()
-	adminRouter.StrictSlash(true) // since not inherited
-
-	// admin routes -------------------------------------
-	adminRouter.HandleFunc("/", admin.BuildIndexHandler(w.adminPath))
-	adminRouter.HandleFunc("/blocks", admin.BuildBlockIndexHandler(w.db, w.adminPath)).Methods("GET")
-	adminRouter.HandleFunc("/blocks", admin.BuildBlockCreateHandler(w.db, w.adminPath)).Methods("POST")
-	adminRouter.HandleFunc("/blocks/{blockKey}", admin.BuildBlockUpdateHandler(w.db, w.adminPath)).Methods("POST")
-
-	// public routes ------------------------------------
-	router.HandleFunc("/favicon.ico", handlers.BuildFaviconHandler())
-	router.HandleFunc("/robots.txt", handlers.BuildRobotsHandler())
-	cssHandler, err := handlers.BuildCSSHandler()
+	cfg, err := config.LoadConfig(configFile)
 	if err != nil {
-		return err
+		log.Fatalf("error parsing config: %v", err)
 	}
-	router.HandleFunc("/styles.css", cssHandler).Methods("GET")
 
-	jsHandler, err := handlers.BuildJSHandler()
+	srv, err := server.NewServer(cfg)
 	if err != nil {
-		return err
+		log.Fatalf("error creating server: %v", err)
 	}
-	router.HandleFunc("/script.js", jsHandler).Methods("GET")
 
-	router.HandleFunc(
-		"/fonts/{path:.*}",
-		handlers.BuildFontHandler(),
-	).Methods("GET")
-	router.HandleFunc(
-		"/static/{path:.*}",
-		handlers.BuildStaticHandler(),
-	).Methods("GET")
+	log.Println(fmt.Sprintf("Starting server on http://%s:%d", cfg.Server.Address, cfg.Server.Port))
 
-	router.HandleFunc("/register/begin/{username}", public.BuildRegisterUserBeginHandler(web, sessionDB, userDB, w.db)).Methods("GET")
-	router.HandleFunc("/register/finish/{username}", public.BuildRegisterUserFinishHandler(web, sessionDB, userDB, w.db)).Methods("POST")
-	router.HandleFunc("/login/begin/{username}", public.BuildLoginUserBeginHandler(web, sessionDB, userDB, w.db)).Methods("GET")
-	router.HandleFunc("/login/finish/{username}", public.BuildLoginUserFinishHandler(web, sessionDB, userDB, w.db)).Methods("POST")
-	router.HandleFunc("/login", public.BuildLoginUserHandler()).Methods("GET")
-	router.HandleFunc("/logout", public.BuildLogoutUserHandler(sessionDB)).Methods("GET")
-	router.HandleFunc("/register", public.BuildRegisterUserHandler()).Methods("GET")
-	router.HandleFunc("/profile", public.BuildProfileHandler(userDB)).Methods("GET")
+	ctx := context.Background()
 
-	router.HandleFunc("/", public.BuildIndexHandler(sessionDB, userDB, w.db)).Methods("GET")
+	err = srv.Start(ctx)
+	if err != nil {
+		log.Fatalf("error starting server: %v", err)
+	}
 
-	router.Use(middlewares.BuildGoAwayMiddleware())
-	router.Use(gorillaHandlers.CompressHandler)
-	router.Use(middlewares.BuildSessionMiddleware(sessionDB, userDB))
-	router.NotFoundHandler = http.HandlerFunc(status.BuildNotFoundHandler(w.db))
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
-	return nil
+	go func() {
+		sig := <-sigChan
+		fmt.Printf("Received %v, shutting down...\n", sig)
+
+		err = srv.Stop(ctx)
+		if err != nil {
+			log.Fatalf("error stopping server: %v", err)
+		}
+
+		os.Exit(0)
+	}()
+
+	log.Println("Press Ctrl+C to exit.")
+
+	select {}
 }

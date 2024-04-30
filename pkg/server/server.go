@@ -6,7 +6,10 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/go-webauthn/webauthn/webauthn"
+
 	"github.com/charlieegan3/storage-console/pkg/config"
+	"github.com/charlieegan3/storage-console/pkg/handlers"
 )
 
 func NewServer(cfg *config.Config) (Server, error) {
@@ -21,7 +24,21 @@ type Server struct {
 func (s *Server) Start(ctx context.Context) error {
 	var err error
 
-	mux := http.NewServeMux()
+	web, err := webauthn.New(&webauthn.Config{
+		RPDisplayName: "Storage Console",
+		RPID:          s.cfg.WebAuthn.Host,
+		RPOrigins:     s.cfg.WebAuthn.Origins,
+	})
+
+	mux, err := newMux(
+		&handlers.Options{
+			DevMode:  s.cfg.Server.DevMode,
+			WebAuthn: web,
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create mux: %w", err)
+	}
 
 	s.httpServer = &http.Server{
 		Addr: fmt.Sprintf(
