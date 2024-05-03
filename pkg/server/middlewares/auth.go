@@ -3,7 +3,7 @@ package middlewares
 import (
 	"net/http"
 
-	"github.com/charlieegan3/storage-console/pkg/handlers"
+	"github.com/charlieegan3/storage-console/pkg/server/handlers"
 )
 
 func BuildAuth(h http.Handler, opts *handlers.Options) http.Handler {
