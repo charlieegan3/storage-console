@@ -7,7 +7,7 @@ import (
 	"net/http"
 
 	"github.com/charlieegan3/storage-console/pkg/config"
-	"github.com/charlieegan3/storage-console/pkg/handlers"
+	"github.com/charlieegan3/storage-console/pkg/server/handlers"
 )
 
 func NewServer(cfg *config.Config) (Server, error) {

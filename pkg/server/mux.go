@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/charlieegan3/storage-console/pkg/handlers"
-	"github.com/charlieegan3/storage-console/pkg/middlewares"
+	"github.com/charlieegan3/storage-console/pkg/server/handlers"
+	"github.com/charlieegan3/storage-console/pkg/server/middlewares"
 )
 
 func newMux(opts *handlers.Options) (*http.ServeMux, error) {
