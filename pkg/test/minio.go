@@ -58,6 +58,13 @@ func InitMinio(ctx context.Context, t *testing.T) (minioClient *minio.Client, cl
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not start minio: %s", err)
 	}
+	cleanupFunc := func() error {
+		if err := minioContainer.Terminate(ctx); err != nil {
+			return fmt.Errorf("could not terminate minio: %s", err)
+		}
+
+		return nil
+	}
 
 	endpoint := fmt.Sprintf("localhost:%d", p)
 	minioClient, err = minio.New(endpoint, &minio.Options{
@@ -65,7 +72,7 @@ func InitMinio(ctx context.Context, t *testing.T) (minioClient *minio.Client, cl
 		Secure: false,
 	})
 	if err != nil {
-		return nil, nil, fmt.Errorf("could not create minio client: %s", err)
+		return nil, cleanupFunc, fmt.Errorf("could not create minio client: %s", err)
 	}
 
 	retries := 5
@@ -74,16 +81,12 @@ func InitMinio(ctx context.Context, t *testing.T) (minioClient *minio.Client, cl
 		if err == nil {
 			break
 		}
-		time.Sleep(1 * time.Second)
+		time.Sleep(500 * time.Millisecond)
 		retries--
 		if retries == 0 {
-			return nil, nil, fmt.Errorf("Could not connect to minio before timeout: %s", err)
+			return nil, cleanupFunc, fmt.Errorf("could not connect to minio before timeout: %s", err)
 		}
 	}
-	return minioClient, func() error {
-		if err := minioContainer.Terminate(ctx); err != nil {
-			return fmt.Errorf("could not terminate minio: %s", err)
-		}
-		return nil
-	}, nil
+
+	return minioClient, cleanupFunc, nil
 }

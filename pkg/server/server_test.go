@@ -2,12 +2,15 @@ package server
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/minio/minio-go/v7"
 
 	"github.com/charlieegan3/storage-console/pkg/config"
 	"github.com/charlieegan3/storage-console/pkg/utils"
@@ -30,7 +33,10 @@ func TestNewServer(t *testing.T) {
 		},
 	}
 
-	server, err := NewServer(serverConfig)
+	var db *sql.DB
+	var minioClient *minio.Client
+
+	server, err := NewServer(db, minioClient, serverConfig)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}

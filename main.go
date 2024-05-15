@@ -2,17 +2,25 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 
+	"github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/lib/pq"
+	"github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7/pkg/credentials"
+
 	"github.com/charlieegan3/storage-console/pkg/config"
+	"github.com/charlieegan3/storage-console/pkg/database/migration"
 	"github.com/charlieegan3/storage-console/pkg/server"
 )
 
 func main() {
+	ctx := context.Background()
 
 	if len(os.Args) != 2 {
 		log.Fatal("Please provide config as first arg")
@@ -28,7 +36,31 @@ func main() {
 		log.Fatalf("error parsing config: %v", err)
 	}
 
-	srv, err := server.NewServer(cfg)
+	db, err := sql.Open("postgres", cfg.Database.ConnectionString)
+	if err != nil {
+		log.Fatalf("error connecting to database: %v", err)
+	}
+
+	err = migration.Up(db, &postgres.Config{
+		MigrationsTable: cfg.Database.MigrationsTable,
+	})
+	if err != nil {
+		log.Fatalf("error running migrations: %v", err)
+	}
+
+	minioClient, err := minio.New(cfg.Buckets["local"].URL, &minio.Options{
+		Creds:  credentials.NewStaticV4(cfg.Buckets["local"].AccessKey, cfg.Buckets["local"].SecretKey, ""),
+		Secure: false,
+	})
+	if err != nil {
+		log.Fatalf("error connecting to minio: %v", err)
+	}
+	_, err = minioClient.ListBuckets(ctx)
+	if err != nil {
+		log.Fatalf("error listing buckets when testing minio connection: %v", err)
+	}
+
+	srv, err := server.NewServer(db, minioClient, cfg)
 	if err != nil {
 		log.Fatalf("error creating server: %v", err)
 	}
@@ -40,8 +72,6 @@ func main() {
 			cfg.Server.Port,
 		)
 	}
-
-	ctx := context.Background()
 
 	err = srv.Start(ctx)
 	if err != nil {

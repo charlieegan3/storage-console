@@ -5,7 +5,6 @@ import (
 	"context"
 	"testing"
 
-	_ "github.com/lib/pq"
 	"github.com/minio/minio-go/v7"
 
 	"github.com/charlieegan3/storage-console/pkg/test"
