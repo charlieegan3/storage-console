@@ -62,7 +62,7 @@ func TestBucketKeys(t *testing.T) {
 	}
 
 	// run the importer
-	err = Run(ctx, db, minioClient, &Options{
+	report, err := Run(ctx, db, minioClient, &Options{
 		BucketName:          "example",
 		SchemaName:          "storage_console",
 		StorageProviderName: "local-minio",
@@ -70,15 +70,51 @@ func TestBucketKeys(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Could not run import: %s", err)
 	}
+	if report.ProviderCreated == false {
+		t.Fatalf("Expected provider to be created")
+	}
+	if report.BucketCreated == false {
+		t.Fatalf("Expected bucket to be created")
+	}
+	if report.ObjectsCreated != 3 {
+		t.Fatalf("Expected 3 objects to be created, got %d", report.ObjectsCreated)
+	}
+	if report.BlobsCreated != 3 {
+		t.Fatalf("Expected 3 blobs to be created, got %d", report.BlobsCreated)
+	}
+	if report.BlobsLinked != 3 {
+		t.Fatalf("Expected 3 blobs to be linked, got %d", report.BlobsLinked)
+	}
+	if report.ObjectStatCalls != 3 {
+		t.Fatalf("Expected 3 object stat calls, got %d", report.ObjectStatCalls)
+	}
 
 	// run again to test for idempotency
-	err = Run(ctx, db, minioClient, &Options{
+	report, err = Run(ctx, db, minioClient, &Options{
 		BucketName:          "example",
 		SchemaName:          "storage_console",
 		StorageProviderName: "local-minio",
 	})
 	if err != nil {
 		t.Fatalf("Could not run import: %s", err)
+	}
+	if report.ProviderCreated == true {
+		t.Fatalf("Expected provider to not be created")
+	}
+	if report.BucketCreated == true {
+		t.Fatalf("Expected bucket to not be created")
+	}
+	if report.ObjectsCreated != 0 {
+		t.Fatalf("Expected 0 objects to be created, got %d", report.ObjectsCreated)
+	}
+	if report.BlobsCreated != 0 {
+		t.Fatalf("Expected 0 blobs to be created, got %d", report.BlobsCreated)
+	}
+	if report.BlobsLinked != 0 {
+		t.Fatalf("Expected 0 blobs to be linked, got %d", report.BlobsLinked)
+	}
+	if report.ObjectStatCalls != 0 {
+		t.Fatalf("Expected 0 object stat calls, got %d", report.ObjectStatCalls)
 	}
 
 	// test the state in the database

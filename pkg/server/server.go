@@ -53,7 +53,7 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 
 	go func() {
-		err := importer.Run(ctx, s.db, s.minioClient, &importer.Options{
+		_, err := importer.Run(ctx, s.db, s.minioClient, &importer.Options{
 			StorageProviderName: "local",
 			BucketName:          "local",
 			SchemaName:          "storage_console",
