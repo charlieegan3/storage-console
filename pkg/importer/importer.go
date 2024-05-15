@@ -16,28 +16,51 @@ type Options struct {
 	StorageProviderName, BucketName, SchemaName string
 }
 
-func Run(ctx context.Context, db *sql.DB, minioClient *minio.Client, opts *Options) error {
+type Report struct {
+	ObjectStatCalls int
+
+	ProviderCreated bool
+	BucketCreated   bool
+
+	ObjectsCreated int
+	BlobsCreated   int
+	BlobsLinked    int
+}
+
+func Run(ctx context.Context, db *sql.DB, minioClient *minio.Client, opts *Options) (*Report, error) {
 
 	if opts.SchemaName == "" {
-		return fmt.Errorf("schema name is required")
+		return nil, fmt.Errorf("schema name is required")
 	}
 
 	if opts.StorageProviderName == "" {
-		return fmt.Errorf("storage provider name is required")
+		return nil, fmt.Errorf("storage provider name is required")
 	}
 
 	if opts.BucketName == "" {
-		return fmt.Errorf("bucket name is required")
+		return nil, fmt.Errorf("bucket name is required")
 	}
 
 	if db == nil {
-		return fmt.Errorf("database is required")
+		return nil, fmt.Errorf("database is required")
 	}
 
 	txn, err := database.NewTxnWithSchema(db, opts.SchemaName)
 	if err != nil {
-		return fmt.Errorf("could not start transaction: %s", err)
+		return nil, fmt.Errorf("could not start transaction: %s", err)
 	}
+
+	shouldRollback := true
+	defer func() {
+		if shouldRollback {
+			err := txn.Rollback()
+			if err != nil {
+				fmt.Printf("could not rollback transaction: %s", err)
+			}
+		}
+	}()
+
+	var r Report
 
 	createObjectStorageProviderSQL := `
 INSERT INTO object_storage_providers (name)
@@ -45,9 +68,13 @@ INSERT INTO object_storage_providers (name)
   ON CONFLICT (name) DO NOTHING;
 `
 
-	_, err = txn.Exec(createObjectStorageProviderSQL, opts.StorageProviderName)
+	result, err := txn.Exec(createObjectStorageProviderSQL, opts.StorageProviderName)
 	if err != nil {
-		return fmt.Errorf("could not insert object storage provider: %s", err)
+		return nil, fmt.Errorf("could not insert object storage provider: %s", err)
+	}
+	r.ProviderCreated, err = didUpdate(result)
+	if err != nil {
+		return nil, fmt.Errorf("could not check if provider was created: %s", err)
 	}
 
 	createBucketSQL := `
@@ -60,18 +87,22 @@ INSERT INTO buckets (name, object_storage_provider_id)
   ON CONFLICT (name) DO NOTHING;
 `
 
-	_, err = txn.Exec(createBucketSQL, opts.StorageProviderName, opts.BucketName)
+	result, err = txn.Exec(createBucketSQL, opts.StorageProviderName, opts.BucketName)
 	if err != nil {
-		return fmt.Errorf("could not insert bucket: %s", err)
+		return nil, fmt.Errorf("could not insert bucket: %s", err)
+	}
+	r.BucketCreated, err = didUpdate(result)
+	if err != nil {
+		return nil, fmt.Errorf("could not check if bucket was created: %s", err)
 	}
 
 	exists, err := minioClient.BucketExists(ctx, opts.BucketName)
 	if err != nil {
-		return fmt.Errorf("could not check if bucket exists: %s", err)
+		return nil, fmt.Errorf("could not check if bucket exists: %s", err)
 	}
 
 	if !exists {
-		return fmt.Errorf("bucket does not exist")
+		return nil, fmt.Errorf("bucket does not exist")
 	}
 
 	for obj := range minioClient.ListObjects(
@@ -79,11 +110,6 @@ INSERT INTO buckets (name, object_storage_provider_id)
 		opts.BucketName,
 		minio.ListObjectsOptions{Recursive: true},
 	) {
-		objData, err := minioClient.StatObject(ctx, opts.BucketName, obj.Key, minio.StatObjectOptions{})
-		if err != nil {
-			return fmt.Errorf("could not stat object: %s", err)
-		}
-
 		parts := strings.Split(obj.Key, "/")
 		if len(parts) == 0 {
 			continue
@@ -105,9 +131,52 @@ dir as (
 INSERT INTO objects (name, directory_id) VALUES ($3, (select id from dir))
 ON CONFLICT (name, directory_id) DO NOTHING;
 `
-		_, err = txn.Exec(objectInitSQL, opts.BucketName, dirPath, filepath.Base(obj.Key))
+		result, err = txn.Exec(objectInitSQL, opts.BucketName, dirPath, filepath.Base(obj.Key))
 		if err != nil {
-			return fmt.Errorf("could not create object: %s", err)
+			return nil, fmt.Errorf("could not create object: %s", err)
+		}
+		objCreated, err := didUpdate(result)
+		if err != nil {
+			return nil, fmt.Errorf("could not check if object was created: %s", err)
+		}
+		if objCreated {
+			r.ObjectsCreated++
+		}
+
+		findExistingBlobSQL := `
+with bucket as (
+	SELECT id FROM buckets WHERE name = $1 LIMIT 1
+),
+dir as (
+  select find_or_create_directory_in_bucket((select id from bucket), $2) as id
+),
+object as (
+  select id from objects where name = $3 and directory_id = (select id from dir) limit 1
+),
+blob as (
+  select blob_id from object_blobs where object_id = (select id from object) limit 1
+)
+select md5 from blobs where id = (select blob_id from blob);
+`
+		var md5 string
+		err = txn.QueryRow(findExistingBlobSQL, opts.BucketName, dirPath, filepath.Base(obj.Key)).Scan(&md5)
+		if err != nil && err != sql.ErrNoRows {
+			return nil, fmt.Errorf("failed checking presence of blob: %s", err)
+		}
+
+		if md5 != "" && md5 == obj.ETag {
+			// then the blob already exists
+			continue
+		}
+
+		r.ObjectStatCalls++
+
+		objData, err := minioClient.StatObject(ctx, opts.BucketName, obj.Key, minio.StatObjectOptions{})
+		if err != nil {
+			return nil, fmt.Errorf("could not stat object: %s", err)
+		}
+		if objData.ETag != obj.ETag {
+			return nil, fmt.Errorf("unexpected ETag: %s != %s", objData.ETag, obj.ETag)
 		}
 
 		blobInitSQL := `
@@ -124,8 +193,9 @@ RETURNING id;
 		var blobID int
 		err = txn.QueryRow(blobInitSQL, obj.ETag, obj.Size, obj.LastModified, objData.ContentType).Scan(&blobID)
 		if err != nil {
-			return fmt.Errorf("could not create blob: %s", err)
+			return nil, fmt.Errorf("could not create blob: %s", err)
 		}
+		r.BlobsCreated++
 
 		objectBlobSQL := `
 with bucket as (
@@ -140,16 +210,38 @@ object as (
 INSERT INTO object_blobs (object_id, blob_id) VALUES ((select id from object), $4)
 ON CONFLICT (object_id, blob_id) DO NOTHING;
 `
-		_, err = txn.Exec(objectBlobSQL, opts.BucketName, dirPath, filepath.Base(obj.Key), blobID)
+		result, err = txn.Exec(objectBlobSQL, opts.BucketName, dirPath, filepath.Base(obj.Key), blobID)
 		if err != nil {
-			return fmt.Errorf("could not create object blob: %s", err)
+			return nil, fmt.Errorf("could not create object blob: %s", err)
+		}
+		objBlobCreated, err := didUpdate(result)
+		if err != nil {
+			return nil, fmt.Errorf("could not check if object blob was created: %s", err)
+		}
+		if objBlobCreated {
+			r.BlobsLinked++
 		}
 	}
 
 	err = txn.Commit()
 	if err != nil {
-		return fmt.Errorf("could not commit transaction: %s", err)
+		return nil, fmt.Errorf("could not commit transaction: %s", err)
 	}
 
-	return nil
+	shouldRollback = false
+
+	return &r, nil
+}
+
+func didUpdate(result sql.Result) (bool, error) {
+	if result == nil {
+		return false, fmt.Errorf("db result was missing")
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("could not get rows affected: %s", err)
+	}
+
+	return rowsAffected > 0, nil
 }
