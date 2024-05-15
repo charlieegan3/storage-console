@@ -30,6 +30,10 @@ func Run(ctx context.Context, db *sql.DB, minioClient *minio.Client, opts *Optio
 		return fmt.Errorf("bucket name is required")
 	}
 
+	if db == nil {
+		return fmt.Errorf("database is required")
+	}
+
 	txn, err := database.NewTxnWithSchema(db, opts.SchemaName)
 	if err != nil {
 		return fmt.Errorf("could not start transaction: %s", err)
@@ -59,6 +63,15 @@ INSERT INTO buckets (name, object_storage_provider_id)
 	_, err = txn.Exec(createBucketSQL, opts.StorageProviderName, opts.BucketName)
 	if err != nil {
 		return fmt.Errorf("could not insert bucket: %s", err)
+	}
+
+	exists, err := minioClient.BucketExists(ctx, opts.BucketName)
+	if err != nil {
+		return fmt.Errorf("could not check if bucket exists: %s", err)
+	}
+
+	if !exists {
+		return fmt.Errorf("bucket does not exist")
 	}
 
 	for obj := range minioClient.ListObjects(

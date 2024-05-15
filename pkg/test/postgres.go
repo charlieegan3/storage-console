@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	_ "github.com/lib/pq"
+
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
