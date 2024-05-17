@@ -45,13 +45,14 @@ func TestBucketKeys(t *testing.T) {
 		t.Fatalf("Could not create bucket: %s", err)
 	}
 
+	var contentString = "hello"
 	for _, v := range []string{"foo/bar.jpg", "bar/foo.jpg", "foo/bar/baz.jpg", "foo.jpg"} {
 		_, err = minioClient.PutObject(
 			ctx,
 			"example",
 			v,
-			bytes.NewReader([]byte("hello")),
-			5,
+			bytes.NewReader([]byte(contentString)),
+			int64(len(contentString)),
 			minio.PutObjectOptions{
 				ContentType: "image/jpeg",
 			},
@@ -230,5 +231,37 @@ WHERE
 
 	if path != "foo/bar/baz.jpg" {
 		t.Fatalf("Expected path to be bar, got %s", path)
+	}
+
+	// update an object
+	var newContentString = "hello2"
+	_, err = minioClient.PutObject(
+		ctx,
+		"example",
+		"foo/bar/baz.jpg",
+		bytes.NewReader([]byte(newContentString)),
+		int64(len(newContentString)),
+		minio.PutObjectOptions{
+			ContentType: "image/jpeg",
+		},
+	)
+	if err != nil {
+		t.Fatalf("Could not put object: %s", err)
+	}
+
+	// run the importer
+	report, err = Run(ctx, db, minioClient, &Options{
+		BucketName:          "example",
+		SchemaName:          "storage_console",
+		StorageProviderName: "local-minio",
+	})
+	if err != nil {
+		t.Fatalf("Could not run import: %s", err)
+	}
+	if report.BlobsCreated != 1 {
+		t.Fatalf("Expected 1 blob to be created, got %d", report.BlobsCreated)
+	}
+	if report.ObjectStatCalls != 1 {
+		t.Fatalf("Expected 1 object stat calls, got %d", report.ObjectStatCalls)
 	}
 }
