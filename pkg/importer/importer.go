@@ -164,8 +164,8 @@ select md5 from blobs where id = (select blob_id from blob);
 			return nil, fmt.Errorf("failed checking presence of blob: %s", err)
 		}
 
-		if md5 != "" && md5 == obj.ETag {
-			// then the blob already exists
+		if md5 == obj.ETag {
+			// then the blob already exists and has the correct content
 			continue
 		}
 
