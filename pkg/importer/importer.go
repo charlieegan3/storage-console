@@ -3,9 +3,11 @@ package importer
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/minio/minio-go/v7"
 
@@ -156,27 +158,41 @@ object as (
 blob as (
   select blob_id from object_blobs where object_id = (select id from object) limit 1
 )
-select md5 from blobs where id = (select blob_id from blob);
+select md5, size, last_modified, content_type_id from blobs where id = (select blob_id from blob) limit 1;
 `
 		var md5 string
-		err = txn.QueryRow(findExistingBlobSQL, opts.BucketName, dirPath, filepath.Base(obj.Key)).Scan(&md5)
-		if err != nil && err != sql.ErrNoRows {
+		var size int64
+		var lastModified time.Time
+		var contentTypeID int
+		err = txn.QueryRow(findExistingBlobSQL, opts.BucketName, dirPath, filepath.Base(obj.Key)).Scan(&md5, &size, &lastModified, &contentTypeID)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("failed checking presence of blob: %s", err)
 		}
 
-		if md5 == obj.ETag {
-			// then the blob already exists and has the correct content
-			continue
+		selectContentTypeSQL := `
+SELECT name FROM content_types WHERE id = $1;
+`
+		var contentType string
+		err = txn.QueryRow(selectContentTypeSQL, contentTypeID).Scan(&contentType)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("could not select content type: %s", err)
 		}
 
-		r.ObjectStatCalls++
+		if md5 != obj.ETag {
+			r.ObjectStatCalls++
 
-		objData, err := minioClient.StatObject(ctx, opts.BucketName, obj.Key, minio.StatObjectOptions{})
-		if err != nil {
-			return nil, fmt.Errorf("could not stat object: %s", err)
-		}
-		if objData.ETag != obj.ETag {
-			return nil, fmt.Errorf("unexpected ETag: %s != %s", objData.ETag, obj.ETag)
+			objData, err := minioClient.StatObject(ctx, opts.BucketName, obj.Key, minio.StatObjectOptions{})
+			if err != nil {
+				return nil, fmt.Errorf("could not stat object: %s", err)
+			}
+			if objData.ETag != obj.ETag {
+				return nil, fmt.Errorf("unexpected ETag: %s != %s", objData.ETag, obj.ETag)
+			}
+
+			md5 = obj.ETag
+			size = obj.Size
+			lastModified = obj.LastModified
+			contentType = objData.ContentType
 		}
 
 		blobInitSQL := `
@@ -191,7 +207,7 @@ RETURNING id;
 `
 
 		var blobID int
-		err = txn.QueryRow(blobInitSQL, obj.ETag, obj.Size, obj.LastModified, objData.ContentType).Scan(&blobID)
+		err = txn.QueryRow(blobInitSQL, md5, size, lastModified, contentType).Scan(&blobID)
 		if err != nil {
 			return nil, fmt.Errorf("could not create blob: %s", err)
 		}
