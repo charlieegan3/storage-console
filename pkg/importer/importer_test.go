@@ -108,8 +108,8 @@ func TestBucketKeys(t *testing.T) {
 	if report.ObjectsCreated != 0 {
 		t.Fatalf("Expected 0 objects to be created, got %d", report.ObjectsCreated)
 	}
-	if report.BlobsCreated != 0 {
-		t.Fatalf("Expected 0 blobs to be created, got %d", report.BlobsCreated)
+	if report.BlobsCreated != 3 {
+		t.Fatalf("Expected 3 blobs to be created, got %d", report.BlobsCreated)
 	}
 	if report.BlobsLinked != 0 {
 		t.Fatalf("Expected 0 blobs to be linked, got %d", report.BlobsLinked)
@@ -258,8 +258,8 @@ WHERE
 	if err != nil {
 		t.Fatalf("Could not run import: %s", err)
 	}
-	if report.BlobsCreated != 1 {
-		t.Fatalf("Expected 1 blob to be created, got %d", report.BlobsCreated)
+	if report.BlobsCreated != 3 {
+		t.Fatalf("Expected 3 blobs to be created, got %d", report.BlobsCreated)
 	}
 	if report.ObjectStatCalls != 1 {
 		t.Fatalf("Expected 1 object stat calls, got %d", report.ObjectStatCalls)
