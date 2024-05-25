@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/minio/minio-go/v7"
@@ -79,6 +78,15 @@ INSERT INTO object_storage_providers (name)
 		return nil, fmt.Errorf("could not check if provider was created: %s", err)
 	}
 
+	exists, err := minioClient.BucketExists(ctx, opts.BucketName)
+	if err != nil {
+		return nil, fmt.Errorf("could not check if bucket exists: %s", err)
+	}
+
+	if !exists {
+		return nil, fmt.Errorf("bucket does not exist")
+	}
+
 	createBucketSQL := `
 WITH object_storage_provider AS (
 	SELECT id FROM object_storage_providers WHERE name = $1
@@ -98,30 +106,12 @@ INSERT INTO buckets (name, object_storage_provider_id)
 		return nil, fmt.Errorf("could not check if bucket was created: %s", err)
 	}
 
-	exists, err := minioClient.BucketExists(ctx, opts.BucketName)
-	if err != nil {
-		return nil, fmt.Errorf("could not check if bucket exists: %s", err)
-	}
-
-	if !exists {
-		return nil, fmt.Errorf("bucket does not exist")
-	}
-
 	for obj := range minioClient.ListObjects(
 		ctx,
 		opts.BucketName,
 		minio.ListObjectsOptions{Recursive: true},
 	) {
-		parts := strings.Split(obj.Key, "/")
-		if len(parts) == 0 {
-			continue
-		}
-
 		dirPath := filepath.Dir(obj.Key)
-		if dirPath == "." {
-			// then the item is in the root
-			continue
-		}
 
 		objectInitSQL := `
 with bucket as (
@@ -199,19 +189,26 @@ SELECT name FROM content_types WHERE id = $1;
 INSERT INTO blobs
 	(md5, size, last_modified, content_type_id)
 VALUES ($1, $2, $3, find_or_create_content_type($4))
-ON CONFLICT (md5) DO UPDATE
-	SET size = EXCLUDED.size,
-	    last_modified = EXCLUDED.last_modified,
-	    content_type_id = EXCLUDED.content_type_id
-RETURNING id;
+ON CONFLICT (md5) DO NOTHING;
 `
 
-		var blobID int
-		err = txn.QueryRow(blobInitSQL, md5, size, lastModified, contentType).Scan(&blobID)
+		result, err = txn.Exec(blobInitSQL, md5, size, lastModified, contentType)
 		if err != nil {
 			return nil, fmt.Errorf("could not create blob: %s", err)
 		}
-		r.BlobsCreated++
+		blobCreated, err := didUpdate(result)
+		if err != nil {
+			return nil, fmt.Errorf("could not check if blob was created: %s", err)
+		}
+		if blobCreated {
+			r.BlobsCreated++
+		}
+
+		var blobID int
+		err = txn.QueryRow("SELECT id FROM blobs WHERE md5 = $1", md5).Scan(&blobID)
+		if err != nil {
+			return nil, fmt.Errorf("could not select blob ID: %s", err)
+		}
 
 		objectBlobSQL := `
 with bucket as (
