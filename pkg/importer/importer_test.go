@@ -46,13 +46,30 @@ func TestBucketKeys(t *testing.T) {
 	}
 
 	var contentString = "hello"
-	for _, v := range []string{"foo/bar.jpg", "bar/foo.jpg", "foo/bar/baz.jpg", "foo.jpg"} {
+	for _, v := range []string{"foo/bar.jpg", "bar/foo.jpg", "foo.jpg"} {
 		_, err = minioClient.PutObject(
 			ctx,
 			"example",
 			v,
 			bytes.NewReader([]byte(contentString)),
 			int64(len(contentString)),
+			minio.PutObjectOptions{
+				ContentType: "image/jpeg",
+			},
+		)
+		if err != nil {
+			t.Fatalf("Could not put object: %s", err)
+		}
+	}
+
+	var contentString2 = "hello2"
+	for _, v := range []string{"foo/bar/baz.jpg"} {
+		_, err = minioClient.PutObject(
+			ctx,
+			"example",
+			v,
+			bytes.NewReader([]byte(contentString2)),
+			int64(len(contentString2)),
 			minio.PutObjectOptions{
 				ContentType: "image/jpeg",
 			},
@@ -77,17 +94,17 @@ func TestBucketKeys(t *testing.T) {
 	if report.BucketCreated == false {
 		t.Fatalf("Expected bucket to be created")
 	}
-	if report.ObjectsCreated != 3 {
-		t.Fatalf("Expected 3 objects to be created, got %d", report.ObjectsCreated)
+	if exp, got := 4, report.ObjectsCreated; exp != got {
+		t.Fatalf("Expected %d objects to be created, got %d", exp, got)
 	}
-	if report.BlobsCreated != 3 {
-		t.Fatalf("Expected 3 blobs to be created, got %d", report.BlobsCreated)
+	if exp, got := 2, report.BlobsCreated; exp != got {
+		t.Fatalf("Expected %d blobs to be created, got %d", exp, got)
 	}
-	if report.BlobsLinked != 3 {
-		t.Fatalf("Expected 3 blobs to be linked, got %d", report.BlobsLinked)
+	if exp, got := 4, report.BlobsLinked; exp != got {
+		t.Fatalf("Expected %d blobs to be linked, got %d", exp, got)
 	}
-	if report.ObjectStatCalls != 3 {
-		t.Fatalf("Expected 3 object stat calls, got %d", report.ObjectStatCalls)
+	if exp, got := 4, report.ObjectStatCalls; exp != got {
+		t.Fatalf("Expected %d object stat calls, got %d", exp, got)
 	}
 
 	// run again to test for idempotency
@@ -108,8 +125,8 @@ func TestBucketKeys(t *testing.T) {
 	if report.ObjectsCreated != 0 {
 		t.Fatalf("Expected 0 objects to be created, got %d", report.ObjectsCreated)
 	}
-	if report.BlobsCreated != 3 {
-		t.Fatalf("Expected 3 blobs to be created, got %d", report.BlobsCreated)
+	if report.BlobsCreated != 0 {
+		t.Fatalf("Expected 0 blobs to be created, got %d", report.BlobsCreated)
 	}
 	if report.BlobsLinked != 0 {
 		t.Fatalf("Expected 0 blobs to be linked, got %d", report.BlobsLinked)
@@ -136,32 +153,32 @@ select
 		t.Fatalf("Could not run test SQL: %s", err)
 	}
 
-	if blobCount != 1 {
-		t.Fatalf("Expected 1 blob, got %d", blobCount)
+	if exp, got := 2, blobCount; exp != got {
+		t.Fatalf("Expected %d blobs, got %d", exp, got)
 	}
 
-	if bucketCount != 1 {
-		t.Fatalf("Expected 1 bucket, got %d", bucketCount)
+	if exp, got := 1, bucketCount; exp != got {
+		t.Fatalf("Expected %d bucket, got %d", exp, got)
 	}
 
-	if contentTypeCount != 1 {
-		t.Fatalf("Expected 1 content type, got %d", contentTypeCount)
+	if exp, got := 1, contentTypeCount; exp != got {
+		t.Fatalf("Expected %d content types, got %d", exp, got)
 	}
 
-	if directoryCount != 4 {
-		t.Fatalf("Expected 4 directories, got %d", directoryCount)
+	if exp, got := 4, directoryCount; exp != got {
+		t.Fatalf("Expected %d directories, got %d", exp, got)
 	}
 
-	if objectBlobCount != 3 {
-		t.Fatalf("Expected 3 object blobs, got %d", objectBlobCount)
+	if exp, got := 4, objectBlobCount; exp != got {
+		t.Fatalf("Expected %d object blobs, got %d", exp, got)
 	}
 
-	if objectStorageProviderCount != 1 {
-		t.Fatalf("Expected 1 object storage provider, got %d", objectStorageProviderCount)
+	if exp, got := 1, objectStorageProviderCount; exp != got {
+		t.Fatalf("Expected %d object storage providers, got %d", exp, got)
 	}
 
-	if objectCount != 3 {
-		t.Fatalf("Expected 3 objects, got %d", objectCount)
+	if exp, got := 4, objectCount; exp != got {
+		t.Fatalf("Expected 4 objects, got %d", objectCount)
 	}
 
 	testContentsSQL := `
@@ -174,7 +191,8 @@ with
 select (select name from bucket) as bucket, (select name from dir) as dir, (select name from obj) as obj;`
 
 	var bucket, dir, obj string
-	err = db.QueryRow(testContentsSQL, "5d41402abc4b2a76b9719d911017c592", 3).Scan(&bucket, &dir, &obj)
+	// hello2 blob
+	err = db.QueryRow(testContentsSQL, "6e809cbda0732ac4845916a59016f954", 4).Scan(&bucket, &dir, &obj)
 	if err != nil {
 		t.Fatalf("Could not run test contents SQL: %s", err)
 	}
@@ -224,17 +242,17 @@ WHERE
 `
 
 	var path string
-	err = db.QueryRow(testPathSQL, 3).Scan(&path)
+	err = db.QueryRow(testPathSQL, 4).Scan(&path)
 	if err != nil {
 		t.Fatalf("Could not run test path SQL: %s", err)
 	}
 
-	if path != "foo/bar/baz.jpg" {
-		t.Fatalf("Expected path to be bar, got %s", path)
+	if exp, got := "foo/bar/baz.jpg", path; exp != got {
+		t.Fatalf("Expected path to be %s, got %s", exp, got)
 	}
 
 	// update an object
-	var newContentString = "hello2"
+	var newContentString = "hello3"
 	_, err = minioClient.PutObject(
 		ctx,
 		"example",
@@ -258,7 +276,7 @@ WHERE
 	if err != nil {
 		t.Fatalf("Could not run import: %s", err)
 	}
-	if report.BlobsCreated != 3 {
+	if report.BlobsCreated != 1 {
 		t.Fatalf("Expected 3 blobs to be created, got %d", report.BlobsCreated)
 	}
 	if report.ObjectStatCalls != 1 {

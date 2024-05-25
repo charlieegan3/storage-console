@@ -50,6 +50,11 @@ BEGIN
     -- Find the 'root' directory id to start with
     SELECT id INTO current_parent_id FROM directories WHERE name = 'root' AND bucket_id = bid;
 
+    -- If the path is '.', return the root directory id
+    IF path = '.' THEN
+        RETURN current_parent_id;
+    END IF;
+
     IF current_parent_id IS NULL THEN
         INSERT INTO directories (name, bucket_id)
         VALUES ('root', bid)
