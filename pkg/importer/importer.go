@@ -106,8 +106,25 @@ INSERT INTO buckets (name, object_storage_provider_id)
 		return nil, fmt.Errorf("could not check if bucket was created: %s", err)
 	}
 
+	bucketIDSQL := `
+WITH object_storage_provider AS (
+	SELECT id FROM object_storage_providers WHERE name = $1
+	                                        LIMIT 1
+),
+bucket AS (
+	SELECT id FROM buckets WHERE name = $2
+	    AND object_storage_provider_id = (SELECT id FROM object_storage_provider)	
+		LIMIT 1
+)
+SELECT id FROM bucket;
+`
+	var bucketID int
+	err = txn.QueryRow(bucketIDSQL, opts.StorageProviderName, opts.BucketName).Scan(&bucketID)
+	if err != nil {
+		return nil, fmt.Errorf("could not select bucket ID: %s", err)
+	}
+
 	existingPathSQL := `
-set schema 'storage_console';
 WITH RECURSIVE directory_path AS (
   SELECT 
     id,
@@ -134,10 +151,10 @@ SELECT
 FROM 
   directory_path
 WHERE 
-  parent_directory_id = (select id from directories where bucket_id = 1 and parent_directory_id IS NULL);
+  parent_directory_id = (select id from directories where bucket_id = $1 and parent_directory_id IS NULL);
 `
 
-	rows, err := txn.Query(existingPathSQL)
+	rows, err := txn.Query(existingPathSQL, bucketID)
 	if err != nil {
 		return nil, fmt.Errorf("could not select existing paths: %s", err)
 	}
@@ -166,16 +183,13 @@ WHERE
 		dirPath := filepath.Dir(obj.Key)
 
 		objectInitSQL := `
-with bucket as (
-	SELECT id FROM buckets WHERE name = $1 LIMIT 1
-),
-dir as (
-  select find_or_create_directory_in_bucket((select id from bucket), $2) as id
+with dir as (
+  select find_or_create_directory_in_bucket($1, $2) as id
 )
 INSERT INTO objects (name, directory_id) VALUES ($3, (select id from dir))
 ON CONFLICT (name, directory_id) DO NOTHING;
 `
-		result, err = txn.Exec(objectInitSQL, opts.BucketName, dirPath, filepath.Base(obj.Key))
+		result, err = txn.Exec(objectInitSQL, bucketID, dirPath, filepath.Base(obj.Key))
 		if err != nil {
 			return nil, fmt.Errorf("could not create object: %s", err)
 		}
@@ -184,15 +198,13 @@ ON CONFLICT (name, directory_id) DO NOTHING;
 			return nil, fmt.Errorf("could not check if object was created: %s", err)
 		}
 		if objCreated {
+			fmt.Println("created", obj.Key)
 			r.ObjectsCreated++
 		}
 
 		findExistingBlobSQL := `
-with bucket as (
-	SELECT id FROM buckets WHERE name = $1 LIMIT 1
-),
-dir as (
-  select find_or_create_directory_in_bucket((select id from bucket), $2) as id
+with dir as (
+  select find_or_create_directory_in_bucket($1, $2) as id
 ),
 object as (
   select id from objects where name = $3 and directory_id = (select id from dir) limit 1
@@ -206,7 +218,7 @@ select md5, size, last_modified, content_type_id from blobs where id = (select b
 		var size int64
 		var lastModified time.Time
 		var contentTypeID int
-		err = txn.QueryRow(findExistingBlobSQL, opts.BucketName, dirPath, filepath.Base(obj.Key)).Scan(&md5, &size, &lastModified, &contentTypeID)
+		err = txn.QueryRow(findExistingBlobSQL, bucketID, dirPath, filepath.Base(obj.Key)).Scan(&md5, &size, &lastModified, &contentTypeID)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("failed checking presence of blob: %s", err)
 		}
@@ -263,11 +275,8 @@ ON CONFLICT (md5) DO NOTHING;
 		}
 
 		objectBlobSQL := `
-with bucket as (
-	SELECT id FROM buckets WHERE name = $1 LIMIT 1
-),
-dir as (
-  select find_or_create_directory_in_bucket((select id from bucket), $2) as id
+with dir as (
+  select find_or_create_directory_in_bucket($1, $2) as id
 ),
 object as (
   select id from objects where name = $3 and directory_id = (select id from dir) limit 1
@@ -275,7 +284,7 @@ object as (
 INSERT INTO object_blobs (object_id, blob_id) VALUES ((select id from object), $4)
 ON CONFLICT (object_id, blob_id) DO NOTHING;
 `
-		result, err = txn.Exec(objectBlobSQL, opts.BucketName, dirPath, filepath.Base(obj.Key), blobID)
+		result, err = txn.Exec(objectBlobSQL, bucketID, dirPath, filepath.Base(obj.Key), blobID)
 		if err != nil {
 			return nil, fmt.Errorf("could not create object blob: %s", err)
 		}
@@ -294,30 +303,26 @@ ON CONFLICT (object_id, blob_id) DO NOTHING;
 		}
 
 		deleteObjectSQL := `
-with bucket as (
-	SELECT id FROM buckets WHERE name = $1 LIMIT 1
-),
-dir as (
-    select find_or_create_directory_in_bucket((select id from bucket), $2) as id
+with dir as (
+    select find_or_create_directory_in_bucket($1, $2) as id
 )
 delete from object_blobs where object_id in (select id from objects where name = $3 and directory_id = (select id from dir));
 `
-		result, err = txn.Exec(deleteObjectSQL, opts.BucketName, filepath.Dir(path), filepath.Base(path))
+		_, err = txn.Exec(deleteObjectSQL, bucketID, filepath.Dir(path), filepath.Base(path))
 		if err != nil {
 			return nil, fmt.Errorf("could not delete object: %s", err)
 		}
+
+		fmt.Println("removed", path)
 	}
 
 	// select all objects that do not have an object blob
 	deleteDisattachedObjectsSQL := `
-with bucket as (
-	SELECT id FROM buckets WHERE name = $1 LIMIT 1
-)
 delete from objects where id not in (
-	  select object_id from object_blobs
+  select object_id from object_blobs
 )
 `
-	result, err = txn.Exec(deleteDisattachedObjectsSQL, opts.BucketName)
+	_, err = txn.Exec(deleteDisattachedObjectsSQL)
 	if err != nil {
 		return nil, fmt.Errorf("could not delete disattached objects: %s", err)
 	}
