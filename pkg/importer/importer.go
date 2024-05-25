@@ -106,11 +106,63 @@ INSERT INTO buckets (name, object_storage_provider_id)
 		return nil, fmt.Errorf("could not check if bucket was created: %s", err)
 	}
 
+	existingPathSQL := `
+set schema 'storage_console';
+WITH RECURSIVE directory_path AS (
+  SELECT 
+    id,
+    name,
+    directory_id as parent_directory_id,
+    CAST(name AS VARCHAR) AS path
+  FROM 
+    objects
+
+  UNION ALL
+
+  SELECT 
+    d.id,
+    d.name,
+    d.parent_directory_id,
+    d.name || '/' || p.path AS path
+  FROM 
+    directories d
+  JOIN 
+    directory_path p ON d.id = p.parent_directory_id
+)
+SELECT 
+  path
+FROM 
+  directory_path
+WHERE 
+  parent_directory_id = (select id from directories where bucket_id = 1 and parent_directory_id IS NULL);
+`
+
+	rows, err := txn.Query(existingPathSQL)
+	if err != nil {
+		return nil, fmt.Errorf("could not select existing paths: %s", err)
+	}
+
+	pathsToRemove := make(map[string]bool)
+	for rows.Next() {
+		var path string
+		err = rows.Scan(&path)
+		if err == sql.ErrNoRows {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("could not scan path: %s", err)
+		}
+		pathsToRemove[path] = true
+	}
+
 	for obj := range minioClient.ListObjects(
 		ctx,
 		opts.BucketName,
 		minio.ListObjectsOptions{Recursive: true},
 	) {
+		if _, ok := pathsToRemove[obj.Key]; ok {
+			pathsToRemove[obj.Key] = false
+		}
 		dirPath := filepath.Dir(obj.Key)
 
 		objectInitSQL := `
@@ -234,6 +286,40 @@ ON CONFLICT (object_id, blob_id) DO NOTHING;
 		if objBlobCreated {
 			r.BlobsLinked++
 		}
+	}
+
+	for path, toRemove := range pathsToRemove {
+		if !toRemove {
+			continue
+		}
+
+		deleteObjectSQL := `
+with bucket as (
+	SELECT id FROM buckets WHERE name = $1 LIMIT 1
+),
+dir as (
+    select find_or_create_directory_in_bucket((select id from bucket), $2) as id
+)
+delete from object_blobs where object_id in (select id from objects where name = $3 and directory_id = (select id from dir));
+`
+		result, err = txn.Exec(deleteObjectSQL, opts.BucketName, filepath.Dir(path), filepath.Base(path))
+		if err != nil {
+			return nil, fmt.Errorf("could not delete object: %s", err)
+		}
+	}
+
+	// select all objects that do not have an object blob
+	deleteDisattachedObjectsSQL := `
+with bucket as (
+	SELECT id FROM buckets WHERE name = $1 LIMIT 1
+)
+delete from objects where id not in (
+	  select object_id from object_blobs
+)
+`
+	result, err = txn.Exec(deleteDisattachedObjectsSQL, opts.BucketName)
+	if err != nil {
+		return nil, fmt.Errorf("could not delete disattached objects: %s", err)
 	}
 
 	err = txn.Commit()

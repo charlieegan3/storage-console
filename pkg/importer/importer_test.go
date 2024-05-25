@@ -282,4 +282,43 @@ WHERE
 	if report.ObjectStatCalls != 1 {
 		t.Fatalf("Expected 1 object stat calls, got %d", report.ObjectStatCalls)
 	}
+
+	// delete an object
+	err = minioClient.RemoveObject(ctx, "example", "foo/bar/baz.jpg", minio.RemoveObjectOptions{})
+	if err != nil {
+		t.Fatalf("Could not remove object: %s", err)
+	}
+
+	// run the importer
+	report, err = Run(ctx, db, minioClient, &Options{
+		BucketName:          "example",
+		SchemaName:          "storage_console",
+		StorageProviderName: "local-minio",
+	})
+	if err != nil {
+		t.Fatalf("Could not run import: %s", err)
+	}
+
+	if report.BlobsCreated != 0 {
+		t.Fatalf("Expected 0 blobs to be created, got %d", report.BlobsCreated)
+	}
+
+	// select objects in foo/bar
+	testObjectsSQL := `
+with
+  foo as (select * from directories where name = 'foo' and parent_directory_id IS NULL),
+  bar as (select * from directories where name = 'bar' and parent_directory_id = (select id from foo)),
+  objs as (select * from objects where directory_id = (select id from bar))
+select count(*) from objs;
+`
+
+	var objectCountInDir int
+	err = db.QueryRow(testObjectsSQL).Scan(&objectCountInDir)
+	if err != nil {
+		t.Fatalf("Could not run test objects SQL: %s", err)
+	}
+
+	if exp, got := 0, objectCountInDir; exp != got {
+		t.Fatalf("Expected %d objects in dir, got %d", exp, got)
+	}
 }
