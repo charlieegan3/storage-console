@@ -2,6 +2,15 @@ CREATE SCHEMA IF NOT EXISTS storage_console;
 
 SET SCHEMA 'storage_console';
 
+CREATE TABLE IF NOT EXISTS tasks (
+  id SERIAL PRIMARY KEY,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  initiator VARCHAR(255) NOT NULL,
+  status VARCHAR(255) NOT NULL,
+  operations INT NOT NULL DEFAULT 0
+);
+
 CREATE TABLE IF NOT EXISTS object_storage_providers (
   id SERIAL PRIMARY KEY,
   name VARCHAR(255) NOT NULL,

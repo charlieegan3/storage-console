@@ -13,6 +13,13 @@ import (
 func TestBucketKeys(t *testing.T) {
 	var ctx = context.Background()
 
+	// task state is reused throughout the test
+	testTasksSQL := `
+select initiator, status, operations from tasks order by created_at desc limit 1;
+`
+	var initiator, status string
+	var operations int
+
 	minioClient, minioCleanup, err := test.InitMinio(ctx, t)
 	defer func() {
 		if minioCleanup == nil {
@@ -107,6 +114,16 @@ func TestBucketKeys(t *testing.T) {
 		t.Fatalf("Expected %d object stat calls, got %d", exp, got)
 	}
 
+	// check the task state
+	err = db.QueryRow(testTasksSQL).Scan(&initiator, &status, &operations)
+	if err != nil {
+		t.Fatalf("Could not run test tasks SQL: %s", err)
+	}
+
+	if exp, got := 12, operations; exp != got {
+		t.Fatalf("Expected operations to be %d, got %d", exp, got)
+	}
+
 	// run again to test for idempotency
 	report, err = Run(ctx, db, minioClient, &Options{
 		BucketName:          "example",
@@ -133,6 +150,16 @@ func TestBucketKeys(t *testing.T) {
 	}
 	if report.ObjectStatCalls != 0 {
 		t.Fatalf("Expected 0 object stat calls, got %d", report.ObjectStatCalls)
+	}
+
+	// check task state
+	err = db.QueryRow(testTasksSQL).Scan(&initiator, &status, &operations)
+	if err != nil {
+		t.Fatalf("Could not run test tasks SQL: %s", err)
+	}
+
+	if exp, got := 0, operations; exp != got {
+		t.Fatalf("Expected operations to be %d, got %d", exp, got)
 	}
 
 	// test the state in the database
@@ -276,11 +303,24 @@ WHERE
 	if err != nil {
 		t.Fatalf("Could not run import: %s", err)
 	}
-	if report.BlobsCreated != 1 {
-		t.Fatalf("Expected 3 blobs to be created, got %d", report.BlobsCreated)
+	if exp, got := 0, report.ObjectsCreated; exp != got {
+		t.Fatalf("Expected %d objects to be created, got %d", exp, got)
 	}
-	if report.ObjectStatCalls != 1 {
-		t.Fatalf("Expected 1 object stat calls, got %d", report.ObjectStatCalls)
+	if exp, got := 1, report.BlobsLinked; exp != got {
+		t.Fatalf("Expected %d blobs to be linked, got %d", exp, got)
+	}
+	if exp, got := 1, report.ObjectStatCalls; exp != got {
+		t.Fatalf("Expected %d object stat calls, got %d", exp, got)
+	}
+
+	// check task state
+	err = db.QueryRow(testTasksSQL).Scan(&initiator, &status, &operations)
+	if err != nil {
+		t.Fatalf("Could not run test tasks SQL: %s", err)
+	}
+
+	if exp, got := 2, operations; exp != got {
+		t.Fatalf("Expected operations to be %d, got %d", exp, got)
 	}
 
 	// delete an object
@@ -299,8 +339,12 @@ WHERE
 		t.Fatalf("Could not run import: %s", err)
 	}
 
-	if report.BlobsCreated != 0 {
-		t.Fatalf("Expected 0 blobs to be created, got %d", report.BlobsCreated)
+	if exp, got := 0, report.ObjectsCreated; exp != got {
+		t.Fatalf("Expected %d objects to be created, got %d", exp, got)
+	}
+
+	if exp, got := 1, report.ObjectsDeleted; exp != got {
+		t.Fatalf("Expected %d objects to be deleted, got %d", exp, got)
 	}
 
 	// select objects in foo/bar
@@ -320,5 +364,23 @@ select count(*) from objs;
 
 	if exp, got := 0, objectCountInDir; exp != got {
 		t.Fatalf("Expected %d objects in dir, got %d", exp, got)
+	}
+
+	// check task state
+	err = db.QueryRow(testTasksSQL).Scan(&initiator, &status, &operations)
+	if err != nil {
+		t.Fatalf("Could not run test tasks SQL: %s", err)
+	}
+
+	if exp, got := "importer", initiator; exp != got {
+		t.Fatalf("Expected initiator to be %s, got %s", exp, got)
+	}
+
+	if exp, got := "completed", status; exp != got {
+		t.Fatalf("Expected status to be %s, got %s", exp, got)
+	}
+
+	if exp, got := 1, operations; exp != got {
+		t.Fatalf("Expected operations to be %d, got %d", exp, got)
 	}
 }
