@@ -73,7 +73,7 @@ RETURNING id;
 		return nil, fmt.Errorf("could not start transaction: %s", err)
 	}
 
-	err = updateTask(db, taskID, "transaction created", false)
+	err = updateTask(db, taskID, "transaction created", false, false)
 	if err != nil {
 		return nil, fmt.Errorf("could not update task: %s", err)
 	}
@@ -106,7 +106,7 @@ INSERT INTO object_storage_providers (name)
 	}
 
 	if r.ProviderCreated {
-		err = updateTask(db, taskID, "provider created", true)
+		err = updateTask(db, taskID, "provider created", true, false)
 		if err != nil {
 			return nil, fmt.Errorf("could not update task: %s", err)
 		}
@@ -132,7 +132,7 @@ INSERT INTO buckets (name, object_storage_provider_id)
 	}
 
 	if r.BucketCreated {
-		err = updateTask(db, taskID, "bucket created", true)
+		err = updateTask(db, taskID, "bucket created", true, false)
 		if err != nil {
 			return nil, fmt.Errorf("could not update task: %s", err)
 		}
@@ -204,7 +204,7 @@ WHERE
 		pathsToRemove[path] = true
 	}
 
-	err = updateTask(db, taskID, "existing state scanned", false)
+	err = updateTask(db, taskID, "existing state scanned", false, false)
 	if err != nil {
 		return nil, fmt.Errorf("could not update task: %s", err)
 	}
@@ -235,7 +235,7 @@ ON CONFLICT (name, directory_id) DO NOTHING;
 			return nil, fmt.Errorf("could not check if object was created: %s", err)
 		}
 		if objCreated {
-			err = updateTask(db, taskID, fmt.Sprintf("object created: %s", obj.Key), true)
+			err = updateTask(db, taskID, fmt.Sprintf("object created: %s", obj.Key), true, false)
 			if err != nil {
 				return nil, fmt.Errorf("could not update task: %s", err)
 			}
@@ -308,7 +308,7 @@ ON CONFLICT (md5) DO NOTHING;
 		if blobCreated {
 			r.BlobsCreated++
 
-			err = updateTask(db, taskID, fmt.Sprintf("blob created: %s", md5), true)
+			err = updateTask(db, taskID, fmt.Sprintf("blob created: %s", md5), true, false)
 			if err != nil {
 				return nil, fmt.Errorf("could not update task: %s", err)
 			}
@@ -341,7 +341,7 @@ ON CONFLICT (object_id, blob_id) DO NOTHING;
 		if objBlobCreated {
 			r.BlobsLinked++
 
-			err = updateTask(db, taskID, fmt.Sprintf("object blob linked: %s", obj.Key), true)
+			err = updateTask(db, taskID, fmt.Sprintf("object blob linked: %s", obj.Key), true, false)
 			if err != nil {
 				return nil, fmt.Errorf("could not update task: %s", err)
 			}
@@ -366,7 +366,7 @@ delete from object_blobs where object_id in (select id from objects where name =
 
 		r.ObjectsDeleted++
 
-		err = updateTask(db, taskID, fmt.Sprintf("object deleted: %s", path), true)
+		err = updateTask(db, taskID, fmt.Sprintf("object deleted: %s", path), true, false)
 		if err != nil {
 			return nil, fmt.Errorf("could not update task: %s", err)
 		}
@@ -388,7 +388,7 @@ delete from objects where id not in (
 		return nil, fmt.Errorf("could not commit transaction: %s", err)
 	}
 
-	err = updateTask(db, taskID, "completed", false)
+	err = updateTask(db, taskID, "completed", false, true)
 	if err != nil {
 		return nil, fmt.Errorf("could not update task: %s", err)
 	}
@@ -411,16 +411,20 @@ func didUpdate(result sql.Result) (bool, error) {
 	return rowsAffected > 0, nil
 }
 
-func updateTask(db *sql.DB, taskID int, status string, incOperations bool) error {
+func updateTask(db *sql.DB, taskID int, status string, incOperations bool, complete bool) error {
 
 	var increment int
 	if incOperations {
 		increment = 1
 	}
+	var completedAt string
+	if complete {
+		completedAt = ", completed_at = CURRENT_TIMESTAMP"
+	}
 
-	updateTaskSQL := `
-UPDATE storage_console.tasks SET status = $1, operations = operations + $3 WHERE id = $2;
-`
+	updateTaskSQL := fmt.Sprintf(`
+UPDATE storage_console.tasks SET status = $1, operations = operations + $3 %s WHERE id = $2;
+`, completedAt)
 	_, err := db.Exec(updateTaskSQL, status, taskID, increment)
 	if err != nil {
 		return fmt.Errorf("could not update task: %s", err)
