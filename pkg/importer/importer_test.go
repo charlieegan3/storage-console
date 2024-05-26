@@ -10,7 +10,7 @@ import (
 	"github.com/charlieegan3/storage-console/pkg/test"
 )
 
-func TestBucketKeys(t *testing.T) {
+func TestRun(t *testing.T) {
 	var ctx = context.Background()
 
 	// task state is reused throughout the test
@@ -110,7 +110,7 @@ select initiator, status, operations from tasks order by created_at desc limit 1
 	if exp, got := 4, report.BlobsLinked; exp != got {
 		t.Fatalf("Expected %d blobs to be linked, got %d", exp, got)
 	}
-	if exp, got := 4, report.ObjectStatCalls; exp != got {
+	if exp, got := 2, report.ObjectStatCalls; exp != got {
 		t.Fatalf("Expected %d object stat calls, got %d", exp, got)
 	}
 
@@ -168,14 +168,13 @@ select
   (select count(id) from blobs) as blob_count,
   (select count(id) from buckets) as bucket_count,
   (select count(id) from content_types) as content_type_count,
-  (select count(id) from directories) as directory_count,
   (select count(*) from object_blobs) as object_blob_count,
   (select count(id) from object_storage_providers) as object_storage_provider_count,
   (select count(id) from objects) as object_count;
 `
 
-	var blobCount, bucketCount, contentTypeCount, directoryCount, objectBlobCount, objectStorageProviderCount, objectCount int
-	err = db.QueryRow(testSQL).Scan(&blobCount, &bucketCount, &contentTypeCount, &directoryCount, &objectBlobCount, &objectStorageProviderCount, &objectCount)
+	var blobCount, bucketCount, contentTypeCount, objectBlobCount, objectStorageProviderCount, objectCount int
+	err = db.QueryRow(testSQL).Scan(&blobCount, &bucketCount, &contentTypeCount, &objectBlobCount, &objectStorageProviderCount, &objectCount)
 	if err != nil {
 		t.Fatalf("Could not run test SQL: %s", err)
 	}
@@ -190,10 +189,6 @@ select
 
 	if exp, got := 1, contentTypeCount; exp != got {
 		t.Fatalf("Expected %d content types, got %d", exp, got)
-	}
-
-	if exp, got := 4, directoryCount; exp != got {
-		t.Fatalf("Expected %d directories, got %d", exp, got)
 	}
 
 	if exp, got := 4, objectBlobCount; exp != got {
@@ -213,69 +208,22 @@ with
   blob as (select * from blobs where md5 = $1),
   objBlob as (select * from object_blobs where blob_id = (select id from blob) and object_id = $2),
   obj as (select * from objects where id = (select object_id from objBlob)),
-  dir as (select * from directories where id = (select directory_id from obj)),
-  bucket as (select * from buckets where id = (select bucket_id from dir))
-select (select name from bucket) as bucket, (select name from dir) as dir, (select name from obj) as obj;`
+  bucket as (select * from buckets where id = (select bucket_id from obj))
+select (select name from bucket) as bucket, (select key from obj) as obj;`
 
-	var bucket, dir, obj string
+	var bucket, obj string
 	// hello2 blob
-	err = db.QueryRow(testContentsSQL, "6e809cbda0732ac4845916a59016f954", 4).Scan(&bucket, &dir, &obj)
+	err = db.QueryRow(testContentsSQL, "6e809cbda0732ac4845916a59016f954", 4).Scan(&bucket, &obj)
 	if err != nil {
 		t.Fatalf("Could not run test contents SQL: %s", err)
 	}
 
-	if bucket != "example" {
-		t.Fatalf("Expected bucket to be example, got %s", bucket)
+	if exp, got := "example", bucket; exp != got {
+		t.Fatalf("Expected bucket to be %s, got %s", exp, got)
 	}
 
-	if dir != "bar" {
-		t.Fatalf("Expected dir to be foo/bar, got %s", dir)
-	}
-
-	if obj != "baz.jpg" {
-		t.Fatalf("Expected obj to be baz.jpg, got %s", obj)
-	}
-
-	testPathSQL := `
-WITH RECURSIVE directory_path AS (
-  SELECT 
-    id,
-    name,
-    directory_id as parent_directory_id,
-    CAST(name AS VARCHAR) AS path
-  FROM 
-    objects
-  WHERE 
-    id = $1
-
-  UNION ALL
-
-  SELECT 
-    d.id,
-    d.name,
-    d.parent_directory_id,
-    d.name || '/' || p.path AS path
-  FROM 
-    directories d
-  JOIN 
-    directory_path p ON d.id = p.parent_directory_id
-)
-SELECT 
-  path
-FROM 
-  directory_path
-WHERE 
-  parent_directory_id = (select id from directories where bucket_id = 1 and parent_directory_id IS NULL);
-`
-
-	var path string
-	err = db.QueryRow(testPathSQL, 4).Scan(&path)
-	if err != nil {
-		t.Fatalf("Could not run test path SQL: %s", err)
-	}
-
-	if exp, got := "foo/bar/baz.jpg", path; exp != got {
-		t.Fatalf("Expected path to be %s, got %s", exp, got)
+	if exp, got := "foo/bar/baz.jpg", obj; exp != got {
+		t.Fatalf("Expected object key to be %s, got %s", exp, got)
 	}
 
 	// update an object
@@ -345,25 +293,6 @@ WHERE
 
 	if exp, got := 1, report.ObjectsDeleted; exp != got {
 		t.Fatalf("Expected %d objects to be deleted, got %d", exp, got)
-	}
-
-	// select objects in foo/bar
-	testObjectsSQL := `
-with
-  foo as (select * from directories where name = 'foo' and parent_directory_id IS NULL),
-  bar as (select * from directories where name = 'bar' and parent_directory_id = (select id from foo)),
-  objs as (select * from objects where directory_id = (select id from bar))
-select count(*) from objs;
-`
-
-	var objectCountInDir int
-	err = db.QueryRow(testObjectsSQL).Scan(&objectCountInDir)
-	if err != nil {
-		t.Fatalf("Could not run test objects SQL: %s", err)
-	}
-
-	if exp, got := 0, objectCountInDir; exp != got {
-		t.Fatalf("Expected %d objects in dir, got %d", exp, got)
 	}
 
 	// check task state
