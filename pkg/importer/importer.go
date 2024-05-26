@@ -26,6 +26,8 @@ type Report struct {
 	ObjectsCreated int
 	BlobsCreated   int
 	BlobsLinked    int
+
+	ObjectsDeleted int
 }
 
 func Run(ctx context.Context, db *sql.DB, minioClient *minio.Client, opts *Options) (*Report, error) {
@@ -46,9 +48,34 @@ func Run(ctx context.Context, db *sql.DB, minioClient *minio.Client, opts *Optio
 		return nil, fmt.Errorf("database is required")
 	}
 
+	exists, err := minioClient.BucketExists(ctx, opts.BucketName)
+	if err != nil {
+		return nil, fmt.Errorf("could not check if bucket exists: %s", err)
+	}
+
+	if !exists {
+		return nil, fmt.Errorf("bucket does not exist")
+	}
+
+	taskInsertSQL := `
+SET SCHEMA 'storage_console';
+INSERT INTO tasks (initiator, status) VALUES ('importer', 'starting')
+RETURNING id;
+`
+	var taskID int
+	err = db.QueryRow(taskInsertSQL).Scan(&taskID)
+	if err != nil {
+		return nil, fmt.Errorf("could not insert task: %s", err)
+	}
+
 	txn, err := database.NewTxnWithSchema(db, opts.SchemaName)
 	if err != nil {
 		return nil, fmt.Errorf("could not start transaction: %s", err)
+	}
+
+	err = updateTask(db, taskID, "transaction created", false)
+	if err != nil {
+		return nil, fmt.Errorf("could not update task: %s", err)
 	}
 
 	shouldRollback := true
@@ -78,13 +105,11 @@ INSERT INTO object_storage_providers (name)
 		return nil, fmt.Errorf("could not check if provider was created: %s", err)
 	}
 
-	exists, err := minioClient.BucketExists(ctx, opts.BucketName)
-	if err != nil {
-		return nil, fmt.Errorf("could not check if bucket exists: %s", err)
-	}
-
-	if !exists {
-		return nil, fmt.Errorf("bucket does not exist")
+	if r.ProviderCreated {
+		err = updateTask(db, taskID, "provider created", true)
+		if err != nil {
+			return nil, fmt.Errorf("could not update task: %s", err)
+		}
 	}
 
 	createBucketSQL := `
@@ -104,6 +129,13 @@ INSERT INTO buckets (name, object_storage_provider_id)
 	r.BucketCreated, err = didUpdate(result)
 	if err != nil {
 		return nil, fmt.Errorf("could not check if bucket was created: %s", err)
+	}
+
+	if r.BucketCreated {
+		err = updateTask(db, taskID, "bucket created", true)
+		if err != nil {
+			return nil, fmt.Errorf("could not update task: %s", err)
+		}
 	}
 
 	bucketIDSQL := `
@@ -163,13 +195,18 @@ WHERE
 	for rows.Next() {
 		var path string
 		err = rows.Scan(&path)
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			break
 		}
 		if err != nil {
 			return nil, fmt.Errorf("could not scan path: %s", err)
 		}
 		pathsToRemove[path] = true
+	}
+
+	err = updateTask(db, taskID, "existing state scanned", false)
+	if err != nil {
+		return nil, fmt.Errorf("could not update task: %s", err)
 	}
 
 	for obj := range minioClient.ListObjects(
@@ -198,7 +235,11 @@ ON CONFLICT (name, directory_id) DO NOTHING;
 			return nil, fmt.Errorf("could not check if object was created: %s", err)
 		}
 		if objCreated {
-			fmt.Println("created", obj.Key)
+			err = updateTask(db, taskID, fmt.Sprintf("object created: %s", obj.Key), true)
+			if err != nil {
+				return nil, fmt.Errorf("could not update task: %s", err)
+			}
+
 			r.ObjectsCreated++
 		}
 
@@ -266,6 +307,11 @@ ON CONFLICT (md5) DO NOTHING;
 		}
 		if blobCreated {
 			r.BlobsCreated++
+
+			err = updateTask(db, taskID, fmt.Sprintf("blob created: %s", md5), true)
+			if err != nil {
+				return nil, fmt.Errorf("could not update task: %s", err)
+			}
 		}
 
 		var blobID int
@@ -294,6 +340,11 @@ ON CONFLICT (object_id, blob_id) DO NOTHING;
 		}
 		if objBlobCreated {
 			r.BlobsLinked++
+
+			err = updateTask(db, taskID, fmt.Sprintf("object blob linked: %s", obj.Key), true)
+			if err != nil {
+				return nil, fmt.Errorf("could not update task: %s", err)
+			}
 		}
 	}
 
@@ -313,7 +364,12 @@ delete from object_blobs where object_id in (select id from objects where name =
 			return nil, fmt.Errorf("could not delete object: %s", err)
 		}
 
-		fmt.Println("removed", path)
+		r.ObjectsDeleted++
+
+		err = updateTask(db, taskID, fmt.Sprintf("object deleted: %s", path), true)
+		if err != nil {
+			return nil, fmt.Errorf("could not update task: %s", err)
+		}
 	}
 
 	// select all objects that do not have an object blob
@@ -332,6 +388,11 @@ delete from objects where id not in (
 		return nil, fmt.Errorf("could not commit transaction: %s", err)
 	}
 
+	err = updateTask(db, taskID, "completed", false)
+	if err != nil {
+		return nil, fmt.Errorf("could not update task: %s", err)
+	}
+
 	shouldRollback = false
 
 	return &r, nil
@@ -348,4 +409,22 @@ func didUpdate(result sql.Result) (bool, error) {
 	}
 
 	return rowsAffected > 0, nil
+}
+
+func updateTask(db *sql.DB, taskID int, status string, incOperations bool) error {
+
+	var increment int
+	if incOperations {
+		increment = 1
+	}
+
+	updateTaskSQL := `
+UPDATE storage_console.tasks SET status = $1, operations = operations + $3 WHERE id = $2;
+`
+	_, err := db.Exec(updateTaskSQL, status, taskID, increment)
+	if err != nil {
+		return fmt.Errorf("could not update task: %s", err)
+	}
+
+	return nil
 }
