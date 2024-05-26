@@ -5,8 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"path/filepath"
-	"time"
 
 	"github.com/minio/minio-go/v7"
 
@@ -157,33 +155,7 @@ SELECT id FROM bucket;
 	}
 
 	existingPathSQL := `
-WITH RECURSIVE directory_path AS (
-  SELECT 
-    id,
-    name,
-    directory_id as parent_directory_id,
-    CAST(name AS VARCHAR) AS path
-  FROM 
-    objects
-
-  UNION ALL
-
-  SELECT 
-    d.id,
-    d.name,
-    d.parent_directory_id,
-    d.name || '/' || p.path AS path
-  FROM 
-    directories d
-  JOIN 
-    directory_path p ON d.id = p.parent_directory_id
-)
-SELECT 
-  path
-FROM 
-  directory_path
-WHERE 
-  parent_directory_id = (select id from directories where bucket_id = $1 and parent_directory_id IS NULL);
+select key from objects where bucket_id = $1;
 `
 
 	rows, err := txn.Query(existingPathSQL, bucketID)
@@ -217,16 +189,12 @@ WHERE
 		if _, ok := pathsToRemove[obj.Key]; ok {
 			pathsToRemove[obj.Key] = false
 		}
-		dirPath := filepath.Dir(obj.Key)
 
 		objectInitSQL := `
-with dir as (
-  select find_or_create_directory_in_bucket($1, $2) as id
-)
-INSERT INTO objects (name, directory_id) VALUES ($3, (select id from dir))
-ON CONFLICT (name, directory_id) DO NOTHING;
+INSERT INTO objects (key, bucket_id) VALUES ($1, $2)
+ON CONFLICT (key) DO NOTHING;
 `
-		result, err = txn.Exec(objectInitSQL, bucketID, dirPath, filepath.Base(obj.Key))
+		result, err = txn.Exec(objectInitSQL, obj.Key, bucketID)
 		if err != nil {
 			return nil, fmt.Errorf("could not create object: %s", err)
 		}
@@ -243,37 +211,24 @@ ON CONFLICT (name, directory_id) DO NOTHING;
 			r.ObjectsCreated++
 		}
 
-		findExistingBlobSQL := `
-with dir as (
-  select find_or_create_directory_in_bucket($1, $2) as id
-),
-object as (
-  select id from objects where name = $3 and directory_id = (select id from dir) limit 1
-),
-blob as (
-  select blob_id from object_blobs where object_id = (select id from object) limit 1
-)
-select md5, size, last_modified, content_type_id from blobs where id = (select blob_id from blob) limit 1;
+		findExistingObjectSQL := `
+select id from objects where key = $1;
 `
-		var md5 string
-		var size int64
-		var lastModified time.Time
-		var contentTypeID int
-		err = txn.QueryRow(findExistingBlobSQL, bucketID, dirPath, filepath.Base(obj.Key)).Scan(&md5, &size, &lastModified, &contentTypeID)
+		var objectID int
+		err = txn.QueryRow(findExistingObjectSQL, obj.Key).Scan(&objectID)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("failed to get object: %s", err)
+		}
+
+		findExistingBlobSQL := `
+select id from blobs where md5 = $1;
+`
+		var blobID int
+		err = txn.QueryRow(findExistingBlobSQL, obj.ETag).Scan(&blobID)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("failed checking presence of blob: %s", err)
 		}
-
-		selectContentTypeSQL := `
-SELECT name FROM content_types WHERE id = $1;
-`
-		var contentType string
-		err = txn.QueryRow(selectContentTypeSQL, contentTypeID).Scan(&contentType)
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("could not select content type: %s", err)
-		}
-
-		if md5 != obj.ETag {
+		if errors.Is(err, sql.ErrNoRows) {
 			r.ObjectStatCalls++
 
 			objData, err := minioClient.StatObject(ctx, opts.BucketName, obj.Key, minio.StatObjectOptions{})
@@ -284,53 +239,36 @@ SELECT name FROM content_types WHERE id = $1;
 				return nil, fmt.Errorf("unexpected ETag: %s != %s", objData.ETag, obj.ETag)
 			}
 
-			md5 = obj.ETag
-			size = obj.Size
-			lastModified = obj.LastModified
-			contentType = objData.ContentType
-		}
-
-		blobInitSQL := `
+			blobInitSQL := `
 INSERT INTO blobs
 	(md5, size, last_modified, content_type_id)
 VALUES ($1, $2, $3, find_or_create_content_type($4))
-ON CONFLICT (md5) DO NOTHING;
+RETURNING id;
 `
 
-		result, err = txn.Exec(blobInitSQL, md5, size, lastModified, contentType)
-		if err != nil {
-			return nil, fmt.Errorf("could not create blob: %s", err)
-		}
-		blobCreated, err := didUpdate(result)
-		if err != nil {
-			return nil, fmt.Errorf("could not check if blob was created: %s", err)
-		}
-		if blobCreated {
+			err = txn.QueryRow(blobInitSQL, obj.ETag, obj.Size, obj.LastModified, objData.ContentType).Scan(&blobID)
+			if err != nil {
+				return nil, fmt.Errorf("could not create blob: %s", err)
+			}
+
 			r.BlobsCreated++
 
-			err = updateTask(db, taskID, fmt.Sprintf("blob created: %s", md5), true, false)
+			err = updateTask(db, taskID, fmt.Sprintf("blob created: %s", obj.ETag), true, false)
 			if err != nil {
 				return nil, fmt.Errorf("could not update task: %s", err)
 			}
 		}
 
-		var blobID int
-		err = txn.QueryRow("SELECT id FROM blobs WHERE md5 = $1", md5).Scan(&blobID)
+		err = txn.QueryRow("SELECT id FROM blobs WHERE md5 = $1", obj.ETag).Scan(&blobID)
 		if err != nil {
 			return nil, fmt.Errorf("could not select blob ID: %s", err)
 		}
 
 		objectBlobSQL := `
-with dir as (
-  select find_or_create_directory_in_bucket($1, $2) as id
-),
-object as (
-  select id from objects where name = $3 and directory_id = (select id from dir) limit 1
-)
-INSERT INTO object_blobs (object_id, blob_id) VALUES ((select id from object), $4)
+INSERT INTO object_blobs (object_id, blob_id) VALUES ($1, $2)
 ON CONFLICT (object_id, blob_id) DO NOTHING;
 `
-		result, err = txn.Exec(objectBlobSQL, bucketID, dirPath, filepath.Base(obj.Key), blobID)
+		result, err = txn.Exec(objectBlobSQL, objectID, blobID)
 		if err != nil {
 			return nil, fmt.Errorf("could not create object blob: %s", err)
 		}
@@ -354,12 +292,10 @@ ON CONFLICT (object_id, blob_id) DO NOTHING;
 		}
 
 		deleteObjectSQL := `
-with dir as (
-    select find_or_create_directory_in_bucket($1, $2) as id
-)
-delete from object_blobs where object_id in (select id from objects where name = $3 and directory_id = (select id from dir));
+update objects SET deleted_at = CURRENT_TIMESTAMP
+where bucket_id = $1 and key = $2 
 `
-		_, err = txn.Exec(deleteObjectSQL, bucketID, filepath.Dir(path), filepath.Base(path))
+		_, err = txn.Exec(deleteObjectSQL, bucketID, path)
 		if err != nil {
 			return nil, fmt.Errorf("could not delete object: %s", err)
 		}
