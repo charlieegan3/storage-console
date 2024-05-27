@@ -12,20 +12,27 @@ func TestLoadConfig(t *testing.T) {
 server:
   port: 8080
   address: localhost
+  dev_mode: true
   log:
     error: stderr
     info: stdout
+  register_mux: true
+  run_importer: true
 database:
   connection_string: postgresql://postgres:password@localhost:5432
-  migrations_table: storage_console
+  migrations_table: schema_migrations_storage_console
   params:
     dbname: storage_console
     sslmode: disable
-buckets:
-  local:
-    url: http://127.0.0.1:9000
+object_storage_providers:
+  local-minio:
+    url: "127.0.0.1:9000"
     access_key: minioadmin
     secret_key: minioadmin
+buckets:
+  local:
+    provider: local-minio
+    default: true
 `)
 
 	config, err := LoadConfig(rawConfig)
@@ -49,23 +56,34 @@ buckets:
 		t.Fatalf("unexpected server logger error: %v", config.Server.LoggerError)
 	}
 
+	if config.Server.RegisterMux != true {
+		t.Fatalf("unexpected server register mux: %v", config.Server.RegisterMux)
+	}
+
+	if config.Server.RunImporter != true {
+		t.Fatalf("unexpected server run importer: %v", config.Server.RunImporter)
+	}
+
 	if config.Database.ConnectionString != "postgresql://postgres:password@localhost:5432?dbname=storage_console&sslmode=disable" {
 		t.Fatalf("unexpected database connection string: %s", config.Database.ConnectionString)
 	}
 
-	if config.Database.MigrationsTable != "storage_console" {
+	if config.Database.MigrationsTable != "schema_migrations_storage_console" {
 		t.Fatalf("unexpected database migrations table: %s", config.Database.MigrationsTable)
 	}
 
-	if config.Buckets["local"].URL != "http://127.0.0.1:9000" {
-		t.Fatalf("unexpected bucket url: %s", config.Buckets["local"].URL)
+	if config.Buckets["local"].Provider != "local-minio" {
+		t.Fatalf("unexpected bucket provider: %s", config.Buckets["local"].Provider)
+	}
+	if config.ObjectStorageProviders["local-minio"].URL != "127.0.0.1:9000" {
+		t.Fatalf("unexpected bucket url: %s", config.ObjectStorageProviders["local-minio"].URL)
 	}
 
-	if config.Buckets["local"].AccessKey != "minioadmin" {
-		t.Fatalf("unexpected bucket access key: %s", config.Buckets["local"].AccessKey)
+	if config.ObjectStorageProviders["local-minio"].AccessKey != "minioadmin" {
+		t.Fatalf("unexpected bucket access key: %s", config.ObjectStorageProviders["local-minio"].AccessKey)
 	}
 
-	if config.Buckets["local"].SecretKey != "minioadmin" {
-		t.Fatalf("unexpected bucket secret key: %s", config.Buckets["local"].SecretKey)
+	if config.ObjectStorageProviders["local-minio"].SecretKey != "minioadmin" {
+		t.Fatalf("unexpected bucket secret key: %s", config.ObjectStorageProviders["local-minio"].SecretKey)
 	}
 }

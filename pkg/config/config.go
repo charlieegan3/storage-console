@@ -11,15 +11,25 @@ import (
 )
 
 type Config struct {
-	Server   Server            `yaml:"server"`
-	Database Database          `yaml:"database"`
-	Buckets  map[string]Bucket `yaml:"buckets"`
+	Server                 Server                           `yaml:"server"`
+	Database               Database                         `yaml:"database"`
+	ObjectStorageProviders map[string]ObjectStorageProvider `yaml:"object_storage_providers"`
+	Buckets                map[string]Bucket                `yaml:"buckets"`
+}
+
+type ObjectStorageProvider struct {
+	URL       string `yaml:"url"`
+	AccessKey string `yaml:"access_key"`
+	SecretKey string `yaml:"secret_key"`
 }
 
 type Server struct {
 	Port    int    `yaml:"port"`
 	Address string `yaml:"address"`
 	DevMode bool   `yaml:"dev_mode"`
+
+	RegisterMux bool `yaml:"register_mux"`
+	RunImporter bool `yaml:"run_importer"`
 
 	LoggerError *log.Logger
 	LoggerInfo  *log.Logger
@@ -32,9 +42,8 @@ type Database struct {
 }
 
 type Bucket struct {
-	URL       string `yaml:"url"`
-	AccessKey string `yaml:"access_key"`
-	SecretKey string `yaml:"secret_key"`
+	Provider string `yaml:"provider"`
+	Default  bool   `yaml:"default"`
 }
 
 func LoadConfig(rawConfig io.Reader) (*Config, error) {
@@ -43,6 +52,9 @@ func LoadConfig(rawConfig io.Reader) (*Config, error) {
 			Port    int    `yaml:"port"`
 			Address string `yaml:"address"`
 			DevMode bool   `yaml:"dev_mode"`
+
+			RunImporter bool `yaml:"run_importer"`
+			RegisterMux bool `yaml:"register_mux"`
 
 			Log struct {
 				Error string `yaml:"error"`
@@ -55,7 +67,8 @@ func LoadConfig(rawConfig io.Reader) (*Config, error) {
 			SchemaName       string            `yaml:"schema_name"`
 			MigrationsTable  string            `yaml:"migrations_table"`
 		}
-		Buckets map[string]Bucket `yaml:"buckets"`
+		ObjectStorageProviders map[string]ObjectStorageProvider `yaml:"object_storage_providers"`
+		Buckets                map[string]Bucket                `yaml:"buckets"`
 	}{}
 	if err := yaml.NewDecoder(rawConfig).Decode(&config); err != nil {
 		return nil, fmt.Errorf("failed to decode config: %w", err)
@@ -94,8 +107,11 @@ func LoadConfig(rawConfig io.Reader) (*Config, error) {
 			DevMode:     config.Server.DevMode,
 			LoggerError: loggerError,
 			LoggerInfo:  loggerInfo,
+			RegisterMux: config.Server.RegisterMux,
+			RunImporter: config.Server.RunImporter,
 		},
-		Database: db,
-		Buckets:  config.Buckets,
+		Database:               db,
+		ObjectStorageProviders: config.ObjectStorageProviders,
+		Buckets:                config.Buckets,
 	}, nil
 }
