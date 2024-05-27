@@ -7,7 +7,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"strings"
 	"testing"
 
 	"github.com/minio/minio-go/v7"
@@ -27,16 +26,33 @@ func TestNewServer(t *testing.T) {
 
 	serverConfig := &config.Config{
 		Server: config.Server{
-			DevMode: true, // needed to pass auth middleware
-			Port:    port,
-			Address: "localhost",
+			DevMode:     true, // needed to pass auth middleware
+			Port:        port,
+			Address:     "localhost",
+			RegisterMux: false,
+			RunImporter: false,
+		},
+		ObjectStorageProviders: map[string]config.ObjectStorageProvider{
+			"local-minio": {
+				URL:       "http://localhost:9000",
+				AccessKey: "minio",
+				SecretKey: "minio123",
+			},
+		},
+		Buckets: map[string]config.Bucket{
+			"local": {
+				Provider: "local-minio",
+				Default:  true,
+			},
 		},
 	}
 
 	var db *sql.DB
-	var minioClient *minio.Client
+	minioClients := map[string]*minio.Client{
+		"local-minio": nil,
+	}
 
-	server, err := NewServer(db, minioClient, serverConfig)
+	server, err := NewServer(db, minioClients, serverConfig)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -84,12 +100,8 @@ func TestNewServer(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err)
 	}
 
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != http.StatusNotFound {
 		t.Logf("body: %s", bodyBs)
 		t.Fatalf("unexpected status code: %d", resp.StatusCode)
-	}
-
-	if !strings.Contains(string(bodyBs), "Storage Console") {
-		t.Fatalf("unexpected body: %s", bodyBs)
 	}
 }

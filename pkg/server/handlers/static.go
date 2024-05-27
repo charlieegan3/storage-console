@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"embed"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -126,9 +127,66 @@ func BuildStaticHandler(opts *Options) (handler func(http.ResponseWriter, *http.
 	}
 }
 
+func BuildContentTypeIconHandler(opts *Options) (handler func(http.ResponseWriter, *http.Request)) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		lookup := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/icons/content-types/"), ".svg")
+
+		var key string
+		switch lookup {
+		case "image/jpg", "image/jpeg":
+			key = "jpg"
+		case "video/mp4":
+			key = "mp4"
+		case "application/pdf":
+			key = "pdf"
+		case "custom/folder":
+			key = "folder"
+		case "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+			key = "docx"
+		case "text/calendar":
+			key = "ics"
+		default:
+			key = "blank"
+		}
+
+		iconReader, err := staticContent.Open(fmt.Sprintf("static/icons/content-types/%s.svg", key))
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			_, err = w.Write([]byte("failed to open icon"))
+			if err != nil && opts.LoggerError != nil {
+				opts.LoggerError.Println(err)
+			}
+			return
+		}
+
+		w.Header().Set("Content-Type", "image/svg+xml")
+
+		_, err = io.Copy(w, iconReader)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			_, err = w.Write([]byte("failed to copy icon"))
+			if err != nil && opts.LoggerError != nil {
+				opts.LoggerError.Println(err)
+			}
+			return
+		}
+
+		err = iconReader.Close()
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			_, err = w.Write([]byte("failed to close icon reader"))
+			if err != nil && opts.LoggerError != nil {
+				opts.LoggerError.Println(err)
+			}
+			return
+		}
+	}
+}
+
 func BuildCSSHandler(opts *Options) (string, func(http.ResponseWriter, *http.Request), error) {
 	sourceFileOrder := []string{
 		"tachyons.css",
+		"styles.css",
 	}
 
 	var bs []byte

@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/charlieegan3/storage-console/pkg/server/handlers"
+	"github.com/charlieegan3/storage-console/pkg/server/handlers/browse"
 	"github.com/charlieegan3/storage-console/pkg/server/middlewares"
 )
 
@@ -28,6 +29,21 @@ func newMux(opts *handlers.Options) (*http.ServeMux, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to build index handler: %s", err)
 	}
+
+	browseHandler, err := browse.BuildHandler(opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build browse handler: %s", err)
+	}
+
+	mux.Handle(
+		"/b/",
+		middlewares.BuildAuth(http.HandlerFunc(browseHandler), opts),
+	)
+
+	mux.Handle(
+		"/icons/content-types/",
+		middlewares.BuildAuth(http.HandlerFunc(handlers.BuildContentTypeIconHandler(opts)), opts),
+	)
 
 	mux.Handle(
 		"/script.js",

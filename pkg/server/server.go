@@ -14,19 +14,19 @@ import (
 	"github.com/charlieegan3/storage-console/pkg/server/handlers"
 )
 
-func NewServer(db *sql.DB, minioClient *minio.Client, cfg *config.Config) (Server, error) {
+func NewServer(db *sql.DB, minioClients map[string]*minio.Client, cfg *config.Config) (Server, error) {
 	return Server{
-		cfg:         cfg,
-		db:          db,
-		minioClient: minioClient,
+		cfg:          cfg,
+		db:           db,
+		minioClients: minioClients,
 	}, nil
 }
 
 type Server struct {
 	cfg *config.Config
 
-	db          *sql.DB
-	minioClient *minio.Client
+	db           *sql.DB
+	minioClients map[string]*minio.Client
 
 	httpServer *http.Server
 }
@@ -34,13 +34,18 @@ type Server struct {
 func (s *Server) Start(ctx context.Context) error {
 	var err error
 
-	mux, err := newMux(
-		&handlers.Options{
-			DevMode: s.cfg.Server.DevMode,
-		},
-	)
-	if err != nil {
-		return fmt.Errorf("failed to create mux: %w", err)
+	mux := http.NewServeMux()
+	if s.cfg.Server.RegisterMux {
+		mux, err = newMux(
+			&handlers.Options{
+				DevMode:                s.cfg.Server.DevMode,
+				ObjectStorageProviders: s.minioClients,
+				DB:                     s.db,
+			},
+		)
+		if err != nil {
+			return fmt.Errorf("failed to create mux: %w", err)
+		}
 	}
 
 	s.httpServer = &http.Server{
@@ -53,7 +58,28 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 
 	go func() {
-		_, err := importer.Run(ctx, s.db, s.minioClient, &importer.Options{
+		if !s.cfg.Server.RunImporter {
+			return
+		}
+
+		var defaultBucket config.Bucket
+		for _, bucket := range s.cfg.Buckets {
+			if bucket.Default {
+				defaultBucket = bucket
+				break
+			}
+		}
+
+		if defaultBucket.Provider == "" {
+			log.Fatalf("no default bucket found")
+		}
+
+		mc, ok := s.minioClients[defaultBucket.Provider]
+		if !ok {
+			log.Fatalf("no minio client found for provider %s", defaultBucket.Provider)
+		}
+
+		_, err := importer.Run(ctx, s.db, mc, &importer.Options{
 			StorageProviderName: "local",
 			BucketName:          "local",
 			SchemaName:          "storage_console",

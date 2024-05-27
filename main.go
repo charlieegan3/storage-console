@@ -48,19 +48,25 @@ func main() {
 		log.Fatalf("error running migrations: %v", err)
 	}
 
-	minioClient, err := minio.New(cfg.Buckets["local"].URL, &minio.Options{
-		Creds:  credentials.NewStaticV4(cfg.Buckets["local"].AccessKey, cfg.Buckets["local"].SecretKey, ""),
-		Secure: false,
-	})
-	if err != nil {
-		log.Fatalf("error connecting to minio: %v", err)
-	}
-	_, err = minioClient.ListBuckets(ctx)
-	if err != nil {
-		log.Fatalf("error listing buckets when testing minio connection: %v", err)
+	objectStorageProviders := make(map[string]*minio.Client)
+	for k, p := range cfg.ObjectStorageProviders {
+		minioClient, err := minio.New(p.URL, &minio.Options{
+			Creds:  credentials.NewStaticV4(p.AccessKey, p.SecretKey, ""),
+			Secure: false,
+		})
+		if err != nil {
+			log.Fatalf("error connecting to minio: %v", err)
+		}
+
+		_, err = minioClient.ListBuckets(ctx)
+		if err != nil {
+			log.Fatalf("error listing buckets when testing minio connection: %v", err)
+		}
+
+		objectStorageProviders[k] = minioClient
 	}
 
-	srv, err := server.NewServer(db, minioClient, cfg)
+	srv, err := server.NewServer(db, objectStorageProviders, cfg)
 	if err != nil {
 		log.Fatalf("error creating server: %v", err)
 	}

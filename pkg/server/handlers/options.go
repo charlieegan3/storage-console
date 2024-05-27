@@ -1,6 +1,11 @@
 package handlers
 
-import "log"
+import (
+	"database/sql"
+	"log"
+
+	"github.com/minio/minio-go/v7"
+)
 
 type Options struct {
 	DevMode    bool
@@ -9,4 +14,7 @@ type Options struct {
 
 	LoggerError *log.Logger
 	LoggerInfo  *log.Logger
+
+	DB                     *sql.DB
+	ObjectStorageProviders map[string]*minio.Client
 }
