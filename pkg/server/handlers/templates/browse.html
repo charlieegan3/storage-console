@@ -20,9 +20,14 @@
         <div class="mr1 h2 w1 flex items-center justify-center">
           <img src="/icons/content-types/{{$v.ContentType}}.svg" class="object-contain"/>
         </div>
-        <div class="">
-          <a href="/b/{{$v.Key}}">{{$v.Name}}</a>
-          <span class="muted f6">{{$v.Size}}</span>
+        <div>
+          {{ if $v.IsDir }}
+            <a href="/b/{{$v.Key}}">{{$v.Name}}</a>
+            <span class="muted f6">{{$v.Size}}</span>
+          {{else}}
+            <a href="./?preview={{ $v.Name }}">{{$v.Name}}</a>
+            <span class="muted f6">{{$v.Size}}</span>
+          {{end}}
         </div>
       </div>
     {{end}}

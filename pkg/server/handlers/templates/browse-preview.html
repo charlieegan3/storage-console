@@ -1,0 +1,61 @@
+{{define "title"}}Storage Console{{end}}
+
+{{define "content"}}
+<div class="page-content">
+
+    <div class="bb b--light-gray pb1 mb2">
+        {{ if .Breadcrumbs.Display }}
+            {{ range $v := .Breadcrumbs.Items }}
+                {{ if $v.Navigable }}
+                    <a href="/b{{ $v.Path }}/">{{ $v.Name }}</a> /
+                {{ else }}
+                    {{ $v.Name }}
+                {{ end }}
+            {{ end }}
+        {{ end }}
+    </div>
+
+    <p>
+      <a target="_blank" href="/b/{{.Dir}}/?asset={{.File}}&download=true">Download</a>
+    </p>
+
+
+    <div class="flex justify-center items-center">
+        {{ if .ContentTypePreviewable }}
+        <div class="w-100 mw7">
+            <img src="/b/{{.Dir}}/?asset={{.File}}" class="object-contain"/>
+        </div>
+        {{ else }}
+        <div class="w4">
+            <img src="/icons/content-types/{{.ContentType}}.svg" class="object-contain"/>
+        </div>
+        {{ end }}
+    </div>
+
+    <div>
+        <div class="flex flex-column mw7">
+            <h2 class="mb1">Blob Details</h2>
+            <div class="flex justify-between ba b--light-gray">
+                <div class="tc pa1">
+                    <p class="m0"><strong>Size</strong></p>
+                    <p class="ml2">{{.Size}}</p>
+                </div>
+                <div class="tc pa1">
+                    <p class="m0"><strong>Last Modified</strong></p>
+                    <p class="ml2">{{.LastModified}}</p>
+                </div>
+                <div class="tc pa1">
+                    <p class="m0"><strong>MD5</strong></p>
+                    <p class="ml2">{{.MD5}}</p>
+                </div>
+                <div class="tc pa1">
+                    <p class="m0"><strong>Content Type</strong></p>
+                    <p class="ml2">{{.ContentType}}</p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+{{end}}

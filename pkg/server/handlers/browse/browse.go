@@ -7,7 +7,9 @@ import (
 	"io"
 	"net/http"
 	"path/filepath"
+	"slices"
 	"strings"
+	"time"
 
 	"github.com/minio/minio-go/v7"
 
@@ -43,47 +45,68 @@ func BuildHandler(opts *handlers.Options) (func(http.ResponseWriter, *http.Reque
 		return nil, fmt.Errorf("local-minio object storage provider is required")
 	}
 
-	tmpl, err := template.ParseFS(
+	tmplDir, err := template.ParseFS(
 		handlers.Templates,
 		"templates/browse.html",
 		"templates/base.html",
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse templates: %s", err)
+		return nil, fmt.Errorf("failed to parse dir templates: %s", err)
 	}
 
+	tmplFile, err := template.ParseFS(
+		handlers.Templates,
+		"templates/browse-preview.html",
+		"templates/base.html",
+	)
+
 	return func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasSuffix(r.URL.Path, "/") {
-			renderDir(opts, mc, tmpl)(w, r)
+		preview := r.URL.Query().Get("preview")
+		asset := r.URL.Query().Get("asset")
+		download := r.URL.Query().Get("download")
+
+		// then render the file
+		if preview != "" {
+			objectPath := strings.TrimPrefix(r.URL.Path+preview, "/b/")
+
+			renderPreview(opts, mc, tmplFile, objectPath)(w, r)
 			return
-		} else {
-			_, err := mc.StatObject(
-				r.Context(),
-				"local",
-				strings.TrimPrefix(r.URL.Path, "/b/"),
-				minio.StatObjectOptions{},
-			)
-			if err == nil {
-				renderFile(opts, mc)(w, r)
-				return
-			}
+		}
+
+		// then render the object
+		if asset != "" {
+			objectPath := strings.TrimPrefix(r.URL.Path+asset, "/b/")
+
+			renderObject(opts, mc, objectPath, download != "")(w, r)
+			return
+		}
+
+		// render the directory
+		if strings.HasSuffix(r.URL.Path, "/") {
+			renderDir(opts, mc, tmplDir)(w, r)
+			return
 		}
 
 		w.WriteHeader(http.StatusBadRequest)
-		_, err := w.Write([]byte("unknown path type"))
+		_, err = w.Write([]byte("unknown path type"))
 		if err != nil && opts.LoggerError != nil {
 			opts.LoggerError.Println(err)
 		}
 	}, nil
 }
 
-func renderFile(opts *handlers.Options, mc *minio.Client) func(http.ResponseWriter, *http.Request) {
+func renderObject(
+	opts *handlers.Options,
+	mc *minio.Client,
+	objectPath string,
+	download bool,
+) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		obj, err := mc.GetObject(
 			r.Context(),
 			"local",
-			strings.TrimPrefix(r.URL.Path, "/b/"),
-			minio.GetObjectOptions{},
+			objectPath,
+			minio.StatObjectOptions{},
 		)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -96,7 +119,52 @@ func renderFile(opts *handlers.Options, mc *minio.Client) func(http.ResponseWrit
 			return
 		}
 
-		metadata, err := obj.Stat()
+		stat, err := obj.Stat()
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			_, err = w.Write([]byte(err.Error()))
+			if err != nil && opts.LoggerError != nil {
+				opts.LoggerError.Println(err)
+			}
+
+			return
+		}
+
+		w.Header().Set("Content-Type", stat.ContentType)
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", stat.Size))
+		if download {
+			w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filepath.Base(objectPath)))
+		} else {
+			w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filepath.Base(objectPath)))
+		}
+
+		_, err = io.Copy(w, obj)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+
+			_, err = w.Write([]byte(err.Error()))
+			if err != nil && opts.LoggerError != nil {
+				opts.LoggerError.Println(err)
+			}
+
+			return
+		}
+	}
+}
+
+func renderPreview(
+	opts *handlers.Options,
+	mc *minio.Client,
+	tmpl *template.Template,
+	objectPath string,
+) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		_, err := mc.StatObject(
+			r.Context(),
+			"local",
+			objectPath,
+			minio.StatObjectOptions{},
+		)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 
@@ -108,10 +176,69 @@ func renderFile(opts *handlers.Options, mc *minio.Client) func(http.ResponseWrit
 			return
 		}
 
-		w.Header().Set("Content-Type", metadata.ContentType)
-		w.Header().Set("Content-Length", fmt.Sprintf("%d", metadata.Size))
+		buf := bytes.NewBuffer([]byte{})
 
-		_, err = io.Copy(w, obj)
+		blobDetailsSQL := `
+select blobs.size, last_modified, md5, content_types.name from objects
+left join object_blobs on objects.id = object_blobs.object_id
+left join blobs on blobs.id = object_blobs.blob_id
+left join content_types on blobs.content_type_id = content_types.id
+where key = $1`
+		var size int64
+		var lastModified time.Time
+		var md5, contentType string
+		err = opts.DB.QueryRow(blobDetailsSQL, objectPath).Scan(&size, &lastModified, &md5, &contentType)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+
+			_, err = w.Write([]byte(err.Error()))
+			if err != nil && opts.LoggerError != nil {
+				opts.LoggerError.Println(err)
+			}
+
+			return
+		}
+
+		previewableContentTypes := []string{
+			"image/png",
+			"image/jpeg",
+		}
+
+		err = tmpl.ExecuteTemplate(buf, "base", struct {
+			Opts                   *handlers.Options
+			Breadcrumbs            breadcrumbs
+			ContentType            string
+			ContentTypePreviewable bool
+			Key                    string
+			Dir                    string
+			File                   string
+			LastModified           string
+			MD5                    string
+			Size                   string
+		}{
+			Opts:                   opts,
+			Breadcrumbs:            breadcrumbsFromPath(objectPath),
+			ContentType:            contentType,
+			ContentTypePreviewable: slices.Contains(previewableContentTypes, contentType),
+			Key:                    objectPath,
+			Dir:                    filepath.Dir(objectPath),
+			File:                   filepath.Base(objectPath),
+			LastModified:           lastModified.Format(time.RFC3339),
+			MD5:                    md5,
+			Size:                   humanizeBytes(size),
+		})
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+
+			_, err = w.Write([]byte(err.Error()))
+			if err != nil && opts.LoggerError != nil {
+				opts.LoggerError.Println(err)
+			}
+
+			return
+		}
+
+		_, err = io.Copy(w, buf)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 
