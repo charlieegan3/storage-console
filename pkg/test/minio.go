@@ -15,12 +15,12 @@ import (
 )
 
 func InitMinio(ctx context.Context, t *testing.T) (minioClient *minio.Client, cleanup func() error, err error) {
-	p, err := utils.FreePort()
+	p, err := utils.FreePort(9093)
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not find free port: %s", err)
 	}
 
-	consolePort, err := utils.FreePort()
+	consolePort, err := utils.FreePort(9094)
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not find free port for console: %s", err)
 	}

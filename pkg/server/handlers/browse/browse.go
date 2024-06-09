@@ -22,6 +22,8 @@ type browseEntry struct {
 	IsDir       bool
 	ContentType string
 	Size        string
+	HasThumb    bool
+	MD5         string
 }
 
 type breadcrumbs struct {
@@ -54,6 +56,17 @@ func BuildHandler(opts *handlers.Options) (func(http.ResponseWriter, *http.Reque
 		return nil, fmt.Errorf("failed to parse dir templates: %s", err)
 	}
 
+	tmplDirGrid, err := template.New("grid").Funcs(template.FuncMap{"join": func(sep string, s ...string) string {
+		return strings.Join(s, sep)
+	}}).ParseFS(
+		handlers.Templates,
+		"templates/browse-grid.html",
+		"templates/base.html",
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse dir grid templates: %s", err)
+	}
+
 	tmplFile, err := template.ParseFS(
 		handlers.Templates,
 		"templates/browse-preview.html",
@@ -63,7 +76,24 @@ func BuildHandler(opts *handlers.Options) (func(http.ResponseWriter, *http.Reque
 	return func(w http.ResponseWriter, r *http.Request) {
 		preview := r.URL.Query().Get("preview")
 		asset := r.URL.Query().Get("asset")
+		thumb := r.URL.Query().Get("thumb")
 		download := r.URL.Query().Get("download")
+		view := r.URL.Query().Get("view")
+
+		// then render the object
+		if asset != "" {
+			objectPath := strings.TrimPrefix(r.URL.Path+asset, "/b/")
+
+			if thumb != "" {
+				objectPath := strings.TrimPrefix(r.URL.Path+asset, "/b/")
+
+				renderObject(opts, mc, objectPath, download != "", thumb)(w, r)
+				return
+			}
+
+			renderObject(opts, mc, objectPath, download != "", "")(w, r)
+			return
+		}
 
 		// then render the file
 		if preview != "" {
@@ -73,16 +103,12 @@ func BuildHandler(opts *handlers.Options) (func(http.ResponseWriter, *http.Reque
 			return
 		}
 
-		// then render the object
-		if asset != "" {
-			objectPath := strings.TrimPrefix(r.URL.Path+asset, "/b/")
-
-			renderObject(opts, mc, objectPath, download != "")(w, r)
-			return
-		}
-
 		// render the directory
 		if strings.HasSuffix(r.URL.Path, "/") {
+			if view == "grid" {
+				renderDir(opts, mc, tmplDirGrid)(w, r)
+				return
+			}
 			renderDir(opts, mc, tmplDir)(w, r)
 			return
 		}
@@ -100,14 +126,26 @@ func renderObject(
 	mc *minio.Client,
 	objectPath string,
 	download bool,
+	thumbKey string,
 ) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		obj, err := mc.GetObject(
-			r.Context(),
-			"local",
-			objectPath,
-			minio.StatObjectOptions{},
-		)
+		var obj *minio.Object
+		var err error
+		if thumbKey != "" {
+			obj, err = mc.GetObject(
+				r.Context(),
+				"meta",
+				fmt.Sprintf("thumbnail/%s.jpg", thumbKey),
+				minio.StatObjectOptions{},
+			)
+		} else {
+			obj, err = mc.GetObject(
+				r.Context(),
+				"local",
+				objectPath,
+				minio.StatObjectOptions{},
+			)
+		}
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 
@@ -305,10 +343,17 @@ func renderDir(opts *handlers.Options, mc *minio.Client, tmpl *template.Template
 			}
 		}
 		loadMetadataSQL := fmt.Sprintf(`
-SELECT key, size, md5, content_types.name AS content_type FROM objects
+SELECT
+	key,
+	size,
+	md5,
+	content_types.name AS content_type,
+	COALESCE(blob_metadata.thumbnail, FALSE) as has_thumb
+FROM objects
 LEFT JOIN object_blobs ON object_blobs.object_id = objects.id
 LEFT JOIN blobs ON object_blobs.blob_id = blobs.id
 LEFT JOIN content_types ON blobs.content_type_id = content_types.id
+LEFT JOIN blob_metadata ON blobs.id = blob_metadata.blob_id
 WHERE key IN (%s)`, placeholders)
 
 		rows, err := opts.DB.Query(loadMetadataSQL, keys...)
@@ -328,7 +373,8 @@ WHERE key IN (%s)`, placeholders)
 			var size int64
 			var md5 string
 			var contentType string
-			err = rows.Scan(&key, &size, &md5, &contentType)
+			var hasThumb bool
+			err = rows.Scan(&key, &size, &md5, &contentType, &hasThumb)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 
@@ -341,8 +387,10 @@ WHERE key IN (%s)`, placeholders)
 			}
 
 			if e, ok := entries[key]; ok {
+				e.MD5 = md5
 				e.ContentType = contentType
 				e.Size = humanizeBytes(size)
+				e.HasThumb = hasThumb
 			}
 		}
 
@@ -351,6 +399,7 @@ WHERE key IN (%s)`, placeholders)
 			entryList = append(entryList, entries[key])
 		}
 
+		// calc the size of the directories based on the objects they contain
 		if len(dirSizeArgs) > 0 {
 			var sb strings.Builder
 			for i := range dirSizeArgs {
@@ -406,10 +455,12 @@ group by dir`, sb.String())
 
 		err = tmpl.ExecuteTemplate(buf, "base", struct {
 			Opts        *handlers.Options
+			Path        string
 			Entries     []*browseEntry
 			Breadcrumbs breadcrumbs
 		}{
 			Opts:        opts,
+			Path:        r.URL.Path,
 			Entries:     entryList,
 			Breadcrumbs: bcs,
 		})

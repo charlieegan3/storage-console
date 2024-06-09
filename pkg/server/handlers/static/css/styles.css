@@ -13,3 +13,11 @@ body {
 .object-contain {
     object-fit: contain;
 }
+
+.flex-grow-3 {
+    flex-grow: 3;
+}
+
+min-height-0 {
+    min-height: 0;
+}

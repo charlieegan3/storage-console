@@ -1,0 +1,51 @@
+{{define "title"}}Storage Console{{end}}
+
+{{define "content"}}
+  <div class="page-content">
+
+    <div class="bb b--light-gray pb1 mb2">
+      <div class="flex justify-between">
+        <div>
+          {{ if .Breadcrumbs.Display }}
+            {{ range $v := .Breadcrumbs.Items }}
+              {{ if $v.Navigable }}
+                <a href="/b{{ $v.Path }}/">{{ $v.Name }}</a> /
+              {{ else }}
+                {{ $v.Name }}
+              {{ end }}
+            {{ end }}
+          {{ end }}
+        </div>
+        <div>
+          <a href="{{ .Path }}" class="mr2">List View</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex flex-wrap">
+      {{ range $k, $v := .Entries }}
+        {{ $link := join "" "./?preview=" $v.Name }}
+        {{ if $v.IsDir }}
+          {{ $link = join "" "/b/" $v.Key "?view=grid" }}
+        {{ end }}
+          <div class="flex flex-column justify-between align-center pa1 ba b--light-gray h5-l w5-l w4 h4 mr1 mb1 pa2 overflow-hidden">
+            <div class="flex align-center justify-around flex-grow-3 min-height-0 h-100 w-100 overflow-hidden">
+              {{ if $v.HasThumb }}
+                <a href="{{ $link }}" class="w-100 h-100">
+                  <img src="{{$.Path}}?asset={{$v.Name}}&thumb={{$v.MD5}}" class="w-100 h-100 object-contain"/>
+                </a>
+              {{ else }}
+                <a href="{{ $link }}" class="w-50 h-50 mt3">
+                  <img src="/icons/content-types/{{$v.ContentType}}.svg" class="w-100 h-100 object-contain"/>
+                </a>
+              {{ end }}
+            </div>
+            <div class="">
+              <a href="{{ $link }}">{{$v.Name}}</a>
+              <span class="muted f6">{{$v.Size}}</span>
+            </div>
+        </div>
+      {{end}}
+    </div>
+  </div>
+{{end}}
