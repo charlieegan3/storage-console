@@ -22,7 +22,7 @@ func InitPostgres(ctx context.Context, t *testing.T) (db *sql.DB, postgresCleanu
 	dbUser := "user"
 	dbPassword := "password"
 
-	databasePort, err := utils.FreePort()
+	databasePort, err := utils.FreePort(5433)
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not find free port for database: %s", err)
 	}

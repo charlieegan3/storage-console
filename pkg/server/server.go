@@ -11,6 +11,7 @@ import (
 
 	"github.com/charlieegan3/storage-console/pkg/config"
 	"github.com/charlieegan3/storage-console/pkg/importer"
+	"github.com/charlieegan3/storage-console/pkg/meta/thumbnail"
 	"github.com/charlieegan3/storage-console/pkg/server/handlers"
 )
 
@@ -86,6 +87,19 @@ func (s *Server) Start(ctx context.Context) error {
 		})
 		if err != nil {
 			log.Printf("error running importer: %v", err)
+			return
+		}
+
+		_, err = thumbnail.Run(ctx, s.db, mc, &thumbnail.Options{
+			SchemaName:              "storage_console",
+			BucketName:              "local",
+			StorageProviderName:     "local",
+			MetaBucketName:          "meta",
+			MetaStorageProviderName: "local",
+			ThumbMaxSize:            300,
+		})
+		if err != nil {
+			log.Printf("error running thumbnail: %v", err)
 			return
 		}
 		log.Println("imported")

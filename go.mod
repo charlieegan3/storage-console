@@ -10,6 +10,7 @@ require (
 	github.com/minio/minio-go/v7 v7.0.70
 	github.com/tdewolff/minify/v2 v2.20.19
 	github.com/testcontainers/testcontainers-go v0.30.0
+	golang.org/x/image v0.17.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -69,7 +70,7 @@ require (
 	golang.org/x/exp v0.0.0-20240416160154-fe59bbe5cc7f // indirect
 	golang.org/x/net v0.24.0 // indirect
 	golang.org/x/sys v0.20.0 // indirect
-	golang.org/x/text v0.15.0 // indirect
+	golang.org/x/text v0.16.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240311173647-c811ad7063a7 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240429193739-8cf5692501f6 // indirect

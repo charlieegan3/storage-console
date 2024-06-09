@@ -88,3 +88,11 @@ CREATE TABLE IF NOT EXISTS object_blobs (
   FOREIGN KEY (object_id) REFERENCES objects(id) ON DELETE CASCADE,
   FOREIGN KEY (blob_id) REFERENCES blobs(id)
 );
+
+CREATE TABLE IF NOT EXISTS blob_metadata (
+  id SERIAL PRIMARY KEY,
+  blob_id INTEGER NOT NULL,
+  thumbnail BOOLEAN NOT NULL DEFAULT FALSE,
+  FOREIGN KEY (blob_id) REFERENCES blobs(id) ON DELETE CASCADE,
+  UNIQUE (blob_id)
+);
