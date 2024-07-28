@@ -1,8 +1,6 @@
 module github.com/charlieegan3/storage-console
 
-go 1.21
-
-toolchain go1.21.1
+go 1.22.5
 
 require (
 	github.com/golang-migrate/migrate/v4 v4.17.1
