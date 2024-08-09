@@ -20,33 +20,77 @@
       repo = "gomod2nix";
       rev = "31b6d2e40b36456e792cd6cf50d5a8ddd2fa59a1";
     };
+    pre-commit-hooks = {
+      type = "github";
+      owner = "cachix";
+      repo = "git-hooks.nix";
+      rev = "c7012d0c18567c889b948781bc74a501e92275d1";
+    };
   };
 
-  outputs = { nixpkgs, flake-utils, gomod2nix, ... }:
+  outputs =
+    {
+      self,
+      nixpkgs,
+      flake-utils,
+      gomod2nix,
+      ...
+    }@inputs:
     let
       utils = flake-utils;
     in
-    utils.lib.eachDefaultSystem (system:
+    utils.lib.eachDefaultSystem (
+      system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
         mkGoEnv = gomod2nix.legacyPackages.${system}.mkGoEnv;
+        goEnv = mkGoEnv { pwd = ./.; };
       in
       {
+        checks = {
+          pre-commit-check = inputs.pre-commit-hooks.lib.${system}.run {
+            src = ./.;
+            hooks = {
+              dprint = {
+                enable = true;
+                name = "dprint check";
+                entry = "dprint check";
+              };
+              nixfmt = {
+                enable = true;
+                name = "nixfmt check";
+                entry = "nixfmt -c ";
+                types = [ "nix" ];
+              };
+            };
+          };
+        };
+
         formatter = pkgs.nixpkgs-fmt;
 
         devShells = {
           default = pkgs.mkShell {
-            nativeBuildInputs = with pkgs; [
+            inherit (self.checks.${system}.pre-commit-check) shellHook;
+            buildInputs = self.checks.${system}.pre-commit-check.enabledPackages;
+
+            env = {
+              DOCKER_HOST = "unix:///Users/charlieegan3/.colima/default/docker.sock";
+              TESTCONTAINERS_RYUK_DISABLED = "true";
+            };
+
+            packages = with pkgs; [
               go_1_22
               golangci-lint
               gomod2nix.packages.${system}.default
-              (mkGoEnv { pwd = ./.; })
+              goEnv
 
               minio
+
+              dprint
+              nixfmt-rfc-style
             ];
           };
         };
       }
     );
 }
-
