@@ -54,7 +54,7 @@
               dprint = {
                 enable = true;
                 name = "dprint check";
-                entry = "dprint check";
+                entry = "dprint check --allow-no-files";
               };
               nixfmt = {
                 enable = true;

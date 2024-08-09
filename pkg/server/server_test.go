@@ -19,7 +19,7 @@ func TestNewServer(t *testing.T) {
 	var err error
 	ctx := context.Background()
 
-	port, err := utils.FreePort()
+	port, err := utils.FreePort(3000)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
