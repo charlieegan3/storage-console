@@ -6,19 +6,13 @@
       type = "github";
       owner = "NixOS";
       repo = "nixpkgs";
-      rev = "4cf7951a91440879f61e05460441762d59adc017";
+      rev = "86e1ad4ec007f4f0e9561886935fe9b278860de8";
     };
     flake-utils = {
       type = "github";
       owner = "numtide";
       repo = "flake-utils";
       rev = "b1d9ab70662946ef0850d488da1c9019f3a9752a";
-    };
-    gomod2nix = {
-      type = "github";
-      owner = "nix-community";
-      repo = "gomod2nix";
-      rev = "31b6d2e40b36456e792cd6cf50d5a8ddd2fa59a1";
     };
     pre-commit-hooks = {
       type = "github";
@@ -33,7 +27,6 @@
       self,
       nixpkgs,
       flake-utils,
-      gomod2nix,
       ...
     }@inputs:
     let
@@ -43,8 +36,6 @@
       system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
-        mkGoEnv = gomod2nix.legacyPackages.${system}.mkGoEnv;
-        goEnv = mkGoEnv { pwd = ./.; };
       in
       {
         checks = {
@@ -68,6 +59,14 @@
 
         formatter = pkgs.nixpkgs-fmt;
 
+        packages.default = pkgs.buildGoModule {
+          pname = "storage-console";
+          version = "0.1.0";
+          vendorHash = "sha256-1fGNPwmRvEnrwsc+tU9sUrdPIVGkFBzb1TVMOn6tIkY=";
+          src = ./.;
+          checkPhase = "";
+        };
+
         devShells = {
           default = pkgs.mkShell {
             inherit (self.checks.${system}.pre-commit-check) shellHook;
@@ -81,8 +80,6 @@
             packages = with pkgs; [
               go_1_22
               golangci-lint
-              gomod2nix.packages.${system}.default
-              goEnv
 
               minio
 
