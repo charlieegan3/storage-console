@@ -92,11 +92,10 @@ func LoadConfig(rawConfig io.Reader) (*Config, error) {
 		params.Add(k, v)
 	}
 
-	db.ConnectionString = fmt.Sprintf(
-		"%s?%s",
-		db.ConnectionString,
-		params.Encode(),
-	)
+	if len(params) > 0 {
+		db.ConnectionString = fmt.Sprintf("%s?%s", db.ConnectionString, params.Encode())
+	}
+
 	db.SchemaName = config.Database.SchemaName
 	db.MigrationsTable = config.Database.MigrationsTable
 
