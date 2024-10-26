@@ -15,19 +15,19 @@ import (
 	"github.com/charlieegan3/storage-console/pkg/server/handlers"
 )
 
-func NewServer(db *sql.DB, minioClients map[string]*minio.Client, cfg *config.Config) (Server, error) {
+func NewServer(db *sql.DB, minioClient *minio.Client, cfg *config.Config) (Server, error) {
 	return Server{
-		cfg:          cfg,
-		db:           db,
-		minioClients: minioClients,
+		cfg:         cfg,
+		db:          db,
+		minioClient: minioClient,
 	}, nil
 }
 
 type Server struct {
 	cfg *config.Config
 
-	db           *sql.DB
-	minioClients map[string]*minio.Client
+	db          *sql.DB
+	minioClient *minio.Client
 
 	httpServer *http.Server
 }
@@ -39,9 +39,10 @@ func (s *Server) Start(ctx context.Context) error {
 	if s.cfg.Server.RegisterMux {
 		mux, err = newMux(
 			&handlers.Options{
-				DevMode:                s.cfg.Server.DevMode,
-				ObjectStorageProviders: s.minioClients,
-				DB:                     s.db,
+				DevMode:       s.cfg.Server.DevMode,
+				ObjectStorage: s.minioClient,
+				DB:            s.db,
+				BucketName:    s.cfg.S3.BucketName,
 			},
 		)
 		if err != nil {
@@ -63,40 +64,19 @@ func (s *Server) Start(ctx context.Context) error {
 			return
 		}
 
-		var defaultBucket config.Bucket
-		for _, bucket := range s.cfg.Buckets {
-			if bucket.Default {
-				defaultBucket = bucket
-				break
-			}
-		}
-
-		if defaultBucket.Provider == "" {
-			log.Fatalf("no default bucket found")
-		}
-
-		mc, ok := s.minioClients[defaultBucket.Provider]
-		if !ok {
-			log.Fatalf("no minio client found for provider %s", defaultBucket.Provider)
-		}
-
-		_, err := importer.Run(ctx, s.db, mc, &importer.Options{
-			StorageProviderName: "local",
-			BucketName:          "local",
-			SchemaName:          "storage_console",
+		_, err := importer.Run(ctx, s.db, s.minioClient, &importer.Options{
+			BucketName: s.cfg.S3.BucketName,
+			SchemaName: "storage_console",
 		})
 		if err != nil {
 			log.Printf("error running importer: %v", err)
 			return
 		}
 
-		_, err = thumbnail.Run(ctx, s.db, mc, &thumbnail.Options{
-			SchemaName:              "storage_console",
-			BucketName:              "local",
-			StorageProviderName:     "local",
-			MetaBucketName:          "meta",
-			MetaStorageProviderName: "local",
-			ThumbMaxSize:            300,
+		_, err = thumbnail.Run(ctx, s.db, s.minioClient, &thumbnail.Options{
+			SchemaName:   "storage_console",
+			BucketName:   s.cfg.S3.BucketName,
+			ThumbMaxSize: 300,
 		})
 		if err != nil {
 			log.Printf("error running thumbnail: %v", err)

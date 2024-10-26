@@ -9,11 +9,14 @@ import (
 	"image"
 	"image/jpeg"
 	"log"
+	"path"
 
 	"github.com/charlieegan3/storage-console/pkg/database"
 	"github.com/minio/minio-go/v7"
 	"golang.org/x/image/draw"
 )
+
+const metaPath = "meta/"
 
 //go:embed missing_thumbs.sql
 var missingThumbsSQL string
@@ -27,14 +30,8 @@ type Report struct {
 
 type Options struct {
 	ThumbMaxSize int
-
-	SchemaName string
-
-	BucketName          string
-	StorageProviderName string
-
-	MetaBucketName          string
-	MetaStorageProviderName string
+	SchemaName   string
+	BucketName   string
 }
 
 func Run(
@@ -57,11 +54,7 @@ func Run(
 		}
 	}()
 
-	rows, err := txn.Query(
-		missingThumbsSQL,
-		opts.BucketName,
-		opts.StorageProviderName,
-	)
+	rows, err := txn.Query(missingThumbsSQL)
 	if err != nil {
 		return nil, fmt.Errorf("could not get missing thumbs: %w", err)
 	}
@@ -128,8 +121,8 @@ func Run(
 
 		_, err = minioClient.PutObject(
 			ctx,
-			opts.MetaBucketName,
-			fmt.Sprintf("thumbnail/%s.jpg", thumb.md5),
+			opts.BucketName,
+			path.Join(metaPath, "thumbnail", thumb.md5+".jpg"),
 			b,
 			int64(b.Len()),
 			minio.PutObjectOptions{

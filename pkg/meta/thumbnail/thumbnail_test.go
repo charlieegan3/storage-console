@@ -12,7 +12,7 @@ import (
 )
 
 func TestRun(t *testing.T) {
-	var ctx = context.Background()
+	ctx := context.Background()
 
 	minioClient, minioCleanup, err := test.InitMinio(ctx, t)
 	defer func() {
@@ -57,7 +57,6 @@ func TestRun(t *testing.T) {
 	}
 
 	for _, f := range files {
-
 		r, err := os.Open("fixtures/" + f.Name())
 		if err != nil {
 			t.Fatalf("Could not open file: %s", err)
@@ -71,7 +70,7 @@ func TestRun(t *testing.T) {
 		_, err = minioClient.PutObject(
 			ctx,
 			"example",
-			f.Name(),
+			"data/"+f.Name(),
 			r,
 			statData.Size(),
 			minio.PutObjectOptions{
@@ -85,9 +84,8 @@ func TestRun(t *testing.T) {
 
 	// run the importer to set the initial state
 	importReport, err := importer.Run(ctx, db, minioClient, &importer.Options{
-		BucketName:          "example",
-		SchemaName:          "storage_console",
-		StorageProviderName: "local-minio",
+		BucketName: "example",
+		SchemaName: "storage_console",
 	})
 	if err != nil {
 		t.Fatalf("Could not run import: %s", err)
@@ -97,11 +95,8 @@ func TestRun(t *testing.T) {
 	}
 
 	thumbReport, err := Run(ctx, db, minioClient, &Options{
-		SchemaName:              "storage_console",
-		BucketName:              "example",
-		StorageProviderName:     "local-minio",
-		MetaBucketName:          "meta",
-		MetaStorageProviderName: "local-minio",
+		SchemaName: "storage_console",
+		BucketName: "example",
 	})
 	if err != nil {
 		t.Fatalf("Could not run thumbnail task: %s", err)

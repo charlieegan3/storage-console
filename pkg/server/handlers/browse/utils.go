@@ -26,7 +26,6 @@ func humanizeBytes(bytes int64) string {
 }
 
 func breadcrumbsFromPath(path string) breadcrumbs {
-
 	// root case where there are no breadcrumbs to show
 	if path == "" {
 		return breadcrumbs{

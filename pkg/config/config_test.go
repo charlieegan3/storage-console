@@ -7,7 +7,6 @@ import (
 )
 
 func TestLoadConfig(t *testing.T) {
-
 	rawConfig := strings.NewReader(`
 server:
   port: 8080
@@ -24,15 +23,11 @@ database:
   params:
     dbname: storage_console
     sslmode: disable
-object_storage_providers:
-  local-minio:
-    url: "127.0.0.1:9000"
-    access_key: minioadmin
-    secret_key: minioadmin
-buckets:
-  local:
-    provider: local-minio
-    default: true
+s3:
+  endpoint: "127.0.0.1:9000"
+  access_key: minioadmin
+  secret_key: minioadmin
+  bucket_name: storage_console
 `)
 
 	config, err := LoadConfig(rawConfig)
@@ -72,18 +67,15 @@ buckets:
 		t.Fatalf("unexpected database migrations table: %s", config.Database.MigrationsTable)
 	}
 
-	if config.Buckets["local"].Provider != "local-minio" {
-		t.Fatalf("unexpected bucket provider: %s", config.Buckets["local"].Provider)
-	}
-	if config.ObjectStorageProviders["local-minio"].URL != "127.0.0.1:9000" {
-		t.Fatalf("unexpected bucket url: %s", config.ObjectStorageProviders["local-minio"].URL)
+	if config.S3.Endpoint != "127.0.0.1:9000" {
+		t.Fatalf("unexpected bucket endpoint: %s", config.S3.Endpoint)
 	}
 
-	if config.ObjectStorageProviders["local-minio"].AccessKey != "minioadmin" {
-		t.Fatalf("unexpected bucket access key: %s", config.ObjectStorageProviders["local-minio"].AccessKey)
+	if config.S3.AccessKey != "minioadmin" {
+		t.Fatalf("unexpected bucket access key: %s", config.S3.AccessKey)
 	}
 
-	if config.ObjectStorageProviders["local-minio"].SecretKey != "minioadmin" {
-		t.Fatalf("unexpected bucket secret key: %s", config.ObjectStorageProviders["local-minio"].SecretKey)
+	if config.S3.SecretKey != "minioadmin" {
+		t.Fatalf("unexpected bucket secret key: %s", config.S3.SecretKey)
 	}
 }
