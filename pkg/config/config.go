@@ -11,16 +11,16 @@ import (
 )
 
 type Config struct {
-	Server                 Server                           `yaml:"server"`
-	Database               Database                         `yaml:"database"`
-	ObjectStorageProviders map[string]ObjectStorageProvider `yaml:"object_storage_providers"`
-	Buckets                map[string]Bucket                `yaml:"buckets"`
+	Server   Server   `yaml:"server"`
+	Database Database `yaml:"database"`
+	S3       S3       `yaml:"object_storage"`
 }
 
-type ObjectStorageProvider struct {
-	URL       string `yaml:"url"`
-	AccessKey string `yaml:"access_key"`
-	SecretKey string `yaml:"secret_key"`
+type S3 struct {
+	Endpoint   string `yaml:"endpoint"`
+	AccessKey  string `yaml:"access_key"`
+	SecretKey  string `yaml:"secret_key"`
+	BucketName string `yaml:"bucket_name"`
 }
 
 type Server struct {
@@ -67,8 +67,7 @@ func LoadConfig(rawConfig io.Reader) (*Config, error) {
 			SchemaName       string            `yaml:"schema_name"`
 			MigrationsTable  string            `yaml:"migrations_table"`
 		}
-		ObjectStorageProviders map[string]ObjectStorageProvider `yaml:"object_storage_providers"`
-		Buckets                map[string]Bucket                `yaml:"buckets"`
+		S3 S3 `yaml:"s3"`
 	}{}
 	if err := yaml.NewDecoder(rawConfig).Decode(&config); err != nil {
 		return nil, fmt.Errorf("failed to decode config: %w", err)
@@ -109,8 +108,7 @@ func LoadConfig(rawConfig io.Reader) (*Config, error) {
 			RegisterMux: config.Server.RegisterMux,
 			RunImporter: config.Server.RunImporter,
 		},
-		Database:               db,
-		ObjectStorageProviders: config.ObjectStorageProviders,
-		Buckets:                config.Buckets,
+		Database: db,
+		S3:       config.S3,
 	}, nil
 }

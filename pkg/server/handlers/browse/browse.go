@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"io"
 	"net/http"
+	"path"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -42,10 +43,7 @@ func BuildHandler(opts *handlers.Options) (func(http.ResponseWriter, *http.Reque
 		return nil, fmt.Errorf("DB is required")
 	}
 
-	mc, ok := opts.ObjectStorageProviders["local-minio"]
-	if !ok {
-		return nil, fmt.Errorf("local-minio object storage provider is required")
-	}
+	mc := opts.ObjectStorage
 
 	tmplDir, err := template.ParseFS(
 		handlers.Templates,
@@ -97,7 +95,7 @@ func BuildHandler(opts *handlers.Options) (func(http.ResponseWriter, *http.Reque
 
 		// then render the file
 		if preview != "" {
-			objectPath := strings.TrimPrefix(r.URL.Path+preview, "/b/")
+			objectPath := path.Join("data", strings.TrimPrefix(r.URL.Path+preview, "/b/"))
 
 			renderPreview(opts, mc, tmplFile, objectPath)(w, r)
 			return
@@ -107,13 +105,17 @@ func BuildHandler(opts *handlers.Options) (func(http.ResponseWriter, *http.Reque
 		if strings.HasSuffix(r.URL.Path, "/") {
 			if view == "grid" {
 				renderDir(opts, mc, tmplDirGrid)(w, r)
+
 				return
 			}
+
 			renderDir(opts, mc, tmplDir)(w, r)
+
 			return
 		}
 
 		w.WriteHeader(http.StatusBadRequest)
+
 		_, err = w.Write([]byte("unknown path type"))
 		if err != nil && opts.LoggerError != nil {
 			opts.LoggerError.Println(err)
@@ -134,14 +136,14 @@ func renderObject(
 		if thumbKey != "" {
 			obj, err = mc.GetObject(
 				r.Context(),
-				"meta",
-				fmt.Sprintf("thumbnail/%s.jpg", thumbKey),
+				opts.BucketName,
+				fmt.Sprintf("meta/thumbnail/%s.jpg", thumbKey),
 				minio.StatObjectOptions{},
 			)
 		} else {
 			obj, err = mc.GetObject(
 				r.Context(),
-				"local",
+				opts.BucketName,
 				objectPath,
 				minio.StatObjectOptions{},
 			)
@@ -199,7 +201,7 @@ func renderPreview(
 	return func(w http.ResponseWriter, r *http.Request) {
 		_, err := mc.StatObject(
 			r.Context(),
-			"local",
+			opts.BucketName,
 			objectPath,
 			minio.StatObjectOptions{},
 		)
@@ -292,14 +294,14 @@ where key = $1`
 
 func renderDir(opts *handlers.Options, mc *minio.Client, tmpl *template.Template) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		path := strings.TrimPrefix(r.URL.Path, "/b/")
+		p := path.Join("data", strings.TrimPrefix(r.URL.Path, "/b/"))
 		// a trailing / is required for path prefix listing,
 		// unless we are listing the root
-		if !strings.HasSuffix(path, "/") && path != "" {
-			path = path + "/"
+		if !strings.HasSuffix(p, "/") && p != "" {
+			p = p + "/"
 		}
 
-		bcs := breadcrumbsFromPath(path)
+		bcs := breadcrumbsFromPath(p)
 
 		var keys []interface{}
 		var dirSizeArgs []interface{}
@@ -307,9 +309,9 @@ func renderDir(opts *handlers.Options, mc *minio.Client, tmpl *template.Template
 		entries := make(map[string]*browseEntry)
 		for obj := range mc.ListObjects(
 			r.Context(),
-			"local",
+			opts.BucketName,
 			minio.ListObjectsOptions{
-				Prefix:    path,
+				Prefix:    p,
 				Recursive: false,
 			},
 		) {
@@ -408,7 +410,7 @@ WHERE key IN (%s)`, placeholders)
 
 			dirSizeSQL := fmt.Sprintf(`
 select
-    CASE 
+    CASE
     	%s
         ELSE ''
     END AS dir,

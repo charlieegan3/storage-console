@@ -61,8 +61,8 @@
 
         packages.default = pkgs.buildGoModule {
           pname = "storage-console";
-          version = "0.1.0";
-          vendorHash = "sha256-1fGNPwmRvEnrwsc+tU9sUrdPIVGkFBzb1TVMOn6tIkY=";
+          version = "0.2.0";
+          vendorHash = "sha256-AZPplQpXGz9d/+7WiCsgnhrNAGLNfvl1Urpkt69yI84=";
           src = ./.;
           checkPhase = "";
         };

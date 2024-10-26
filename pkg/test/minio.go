@@ -10,24 +10,9 @@ import (
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
-
-	"github.com/charlieegan3/storage-console/pkg/utils"
 )
 
 func InitMinio(ctx context.Context, t *testing.T) (minioClient *minio.Client, cleanup func() error, err error) {
-	p, err := utils.FreePort(9093)
-	if err != nil {
-		return nil, nil, fmt.Errorf("could not find free port: %s", err)
-	}
-
-	consolePort, err := utils.FreePort(9094)
-	if err != nil {
-		return nil, nil, fmt.Errorf("could not find free port for console: %s", err)
-	}
-
-	t.Logf("Minio http://localhost:%d", p)
-	t.Logf("Minio Console: http://localhost:%d", consolePort)
-
 	adminUser := "minioadmin"
 	adminPassword := "minioadmin"
 
@@ -37,19 +22,16 @@ func InitMinio(ctx context.Context, t *testing.T) (minioClient *minio.Client, cl
 			"server",
 			"/data",
 			"--address",
-			fmt.Sprintf(":%d", p),
+			":9000",
 			"--console-address",
-			fmt.Sprintf(":%d", consolePort),
+			":9001",
 		},
-		ExposedPorts: []string{
-			fmt.Sprintf("%d:%d", p, p),
-			fmt.Sprintf("%d:%d", consolePort, consolePort),
-		},
+		ExposedPorts: []string{"9000", "9001"},
 		Env: map[string]string{
 			"MINIO_ROOT_USER":     adminUser,
 			"MINIO_ROOT_PASSWORD": adminPassword,
 		},
-		WaitingFor: wait.ForLog("1 Online"),
+		WaitingFor: wait.ForLog("1 Online").WithStartupTimeout(5 * time.Second),
 	}
 	minioContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
@@ -66,7 +48,14 @@ func InitMinio(ctx context.Context, t *testing.T) (minioClient *minio.Client, cl
 		return nil
 	}
 
-	endpoint := fmt.Sprintf("localhost:%d", p)
+	p, _ := minioContainer.MappedPort(ctx, "9000")
+
+	t.Logf("Minio http://localhost:%s", p.Port())
+
+	cp, _ := minioContainer.MappedPort(ctx, "9001")
+	t.Logf("Minio Console: http://localhost:%s", cp.Port())
+
+	endpoint := fmt.Sprintf("localhost:%s", p.Port())
 	minioClient, err = minio.New(endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(adminUser, adminPassword, ""),
 		Secure: false,
@@ -81,7 +70,11 @@ func InitMinio(ctx context.Context, t *testing.T) (minioClient *minio.Client, cl
 		if err == nil {
 			break
 		}
+
+		t.Log(err)
+
 		time.Sleep(500 * time.Millisecond)
+
 		retries--
 		if retries == 0 {
 			return nil, cleanupFunc, fmt.Errorf("could not connect to minio before timeout: %s", err)

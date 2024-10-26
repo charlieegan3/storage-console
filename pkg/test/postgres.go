@@ -14,7 +14,6 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 
 	"github.com/charlieegan3/storage-console/pkg/database/migration"
-	"github.com/charlieegan3/storage-console/pkg/utils"
 )
 
 func InitPostgres(ctx context.Context, t *testing.T) (db *sql.DB, postgresCleanup func() error, err error) {
@@ -22,16 +21,9 @@ func InitPostgres(ctx context.Context, t *testing.T) (db *sql.DB, postgresCleanu
 	dbUser := "user"
 	dbPassword := "password"
 
-	databasePort, err := utils.FreePort(5433)
-	if err != nil {
-		return nil, nil, fmt.Errorf("could not find free port for database: %s", err)
-	}
-
 	req := testcontainers.ContainerRequest{
-		Image: "postgres:16.2",
-		ExposedPorts: []string{
-			fmt.Sprintf("%d:5432", databasePort),
-		},
+		Image:        "postgres:16.2",
+		ExposedPorts: []string{"5432"},
 		Env: map[string]string{
 			"POSTGRES_DB":       dbName,
 			"POSTGRES_USER":     dbUser,
@@ -47,11 +39,13 @@ func InitPostgres(ctx context.Context, t *testing.T) (db *sql.DB, postgresCleanu
 		return nil, nil, fmt.Errorf("could not start postgres: %s", err)
 	}
 
+	databasePort, _ := postgresContainer.MappedPort(ctx, "5432")
+
 	connectionString := fmt.Sprintf(
-		"postgresql://%s:%s@127.0.0.1:%d/%s?sslmode=disable",
+		"postgresql://%s:%s@127.0.0.1:%s/%s?sslmode=disable",
 		dbUser,
 		dbPassword,
-		databasePort,
+		databasePort.Port(),
 		dbName,
 	)
 

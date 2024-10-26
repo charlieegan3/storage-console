@@ -11,15 +11,15 @@ import (
 	"github.com/charlieegan3/storage-console/pkg/database"
 )
 
+const dataPath = "data/"
+
 type Options struct {
-	StorageProviderName, BucketName, SchemaName string
+	BucketName string
+	SchemaName string
 }
 
 type Report struct {
 	ObjectStatCalls int
-
-	ProviderCreated bool
-	BucketCreated   bool
 
 	ObjectsCreated int
 	BlobsCreated   int
@@ -29,13 +29,8 @@ type Report struct {
 }
 
 func Run(ctx context.Context, db *sql.DB, minioClient *minio.Client, opts *Options) (*Report, error) {
-
 	if opts.SchemaName == "" {
 		return nil, fmt.Errorf("schema name is required")
-	}
-
-	if opts.StorageProviderName == "" {
-		return nil, fmt.Errorf("storage provider name is required")
 	}
 
 	if opts.BucketName == "" {
@@ -88,77 +83,11 @@ RETURNING id;
 
 	var r Report
 
-	createObjectStorageProviderSQL := `
-INSERT INTO object_storage_providers (name)
-  VALUES ($1)
-  ON CONFLICT (name) DO NOTHING;
-`
-
-	result, err := txn.Exec(createObjectStorageProviderSQL, opts.StorageProviderName)
-	if err != nil {
-		return nil, fmt.Errorf("could not insert object storage provider: %s", err)
-	}
-	r.ProviderCreated, err = didUpdate(result)
-	if err != nil {
-		return nil, fmt.Errorf("could not check if provider was created: %s", err)
-	}
-
-	if r.ProviderCreated {
-		err = updateTask(db, taskID, "provider created", true, false)
-		if err != nil {
-			return nil, fmt.Errorf("could not update task: %s", err)
-		}
-	}
-
-	createBucketSQL := `
-WITH object_storage_provider AS (
-	SELECT id FROM object_storage_providers WHERE name = $1
-	                                        LIMIT 1
-)
-INSERT INTO buckets (name, object_storage_provider_id)
-  VALUES ($2, (SELECT id FROM object_storage_provider))
-  ON CONFLICT (name) DO NOTHING;
-`
-
-	result, err = txn.Exec(createBucketSQL, opts.StorageProviderName, opts.BucketName)
-	if err != nil {
-		return nil, fmt.Errorf("could not insert bucket: %s", err)
-	}
-	r.BucketCreated, err = didUpdate(result)
-	if err != nil {
-		return nil, fmt.Errorf("could not check if bucket was created: %s", err)
-	}
-
-	if r.BucketCreated {
-		err = updateTask(db, taskID, "bucket created", true, false)
-		if err != nil {
-			return nil, fmt.Errorf("could not update task: %s", err)
-		}
-	}
-
-	bucketIDSQL := `
-WITH object_storage_provider AS (
-	SELECT id FROM object_storage_providers WHERE name = $1
-	                                        LIMIT 1
-),
-bucket AS (
-	SELECT id FROM buckets WHERE name = $2
-	    AND object_storage_provider_id = (SELECT id FROM object_storage_provider)	
-		LIMIT 1
-)
-SELECT id FROM bucket;
-`
-	var bucketID int
-	err = txn.QueryRow(bucketIDSQL, opts.StorageProviderName, opts.BucketName).Scan(&bucketID)
-	if err != nil {
-		return nil, fmt.Errorf("could not select bucket ID: %s", err)
-	}
-
 	existingPathSQL := `
-select key from objects where bucket_id = $1;
+select key from objects;
 `
 
-	rows, err := txn.Query(existingPathSQL, bucketID)
+	rows, err := txn.Query(existingPathSQL)
 	if err != nil {
 		return nil, fmt.Errorf("could not select existing paths: %s", err)
 	}
@@ -184,17 +113,17 @@ select key from objects where bucket_id = $1;
 	for obj := range minioClient.ListObjects(
 		ctx,
 		opts.BucketName,
-		minio.ListObjectsOptions{Recursive: true},
+		minio.ListObjectsOptions{Prefix: dataPath, Recursive: true},
 	) {
 		if _, ok := pathsToRemove[obj.Key]; ok {
 			pathsToRemove[obj.Key] = false
 		}
 
 		objectInitSQL := `
-INSERT INTO objects (key, bucket_id) VALUES ($1, $2)
+INSERT INTO objects (key) VALUES ($1)
 ON CONFLICT (key) DO NOTHING;
 `
-		result, err = txn.Exec(objectInitSQL, obj.Key, bucketID)
+		result, err := txn.Exec(objectInitSQL, obj.Key)
 		if err != nil {
 			return nil, fmt.Errorf("could not create object: %s", err)
 		}
@@ -293,9 +222,9 @@ ON CONFLICT (object_id, blob_id) DO NOTHING;
 
 		deleteObjectSQL := `
 update objects SET deleted_at = CURRENT_TIMESTAMP
-where bucket_id = $1 and key = $2 
+where key = $1
 `
-		_, err = txn.Exec(deleteObjectSQL, bucketID, path)
+		_, err = txn.Exec(deleteObjectSQL, path)
 		if err != nil {
 			return nil, fmt.Errorf("could not delete object: %s", err)
 		}
@@ -348,7 +277,6 @@ func didUpdate(result sql.Result) (bool, error) {
 }
 
 func updateTask(db *sql.DB, taskID int, status string, incOperations bool, complete bool) error {
-
 	var increment int
 	if incOperations {
 		increment = 1

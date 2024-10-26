@@ -19,5 +19,6 @@ func FreePort(preferred int) (port int, err error) {
 			return l.Addr().(*net.TCPAddr).Port, nil
 		}
 	}
+
 	return
 }

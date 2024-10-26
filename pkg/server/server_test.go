@@ -5,11 +5,13 @@ import (
 	"database/sql"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"testing"
 
 	"github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7/pkg/credentials"
 
 	"github.com/charlieegan3/storage-console/pkg/config"
 	"github.com/charlieegan3/storage-console/pkg/utils"
@@ -32,27 +34,29 @@ func TestNewServer(t *testing.T) {
 			RegisterMux: false,
 			RunImporter: false,
 		},
-		ObjectStorageProviders: map[string]config.ObjectStorageProvider{
-			"local-minio": {
-				URL:       "http://localhost:9000",
-				AccessKey: "minio",
-				SecretKey: "minio123",
-			},
-		},
-		Buckets: map[string]config.Bucket{
-			"local": {
-				Provider: "local-minio",
-				Default:  true,
-			},
+		S3: config.S3{
+			Endpoint:   "localhost:9000",
+			AccessKey:  "minio",
+			SecretKey:  "minio123",
+			BucketName: "local",
 		},
 	}
 
 	var db *sql.DB
-	minioClients := map[string]*minio.Client{
-		"local-minio": nil,
+
+	minioClient, err := minio.New(serverConfig.S3.Endpoint, &minio.Options{
+		Creds: credentials.NewStaticV4(
+			serverConfig.S3.AccessKey,
+			serverConfig.S3.SecretKey,
+			"",
+		),
+		Secure: false,
+	})
+	if err != nil {
+		log.Fatalf("error connecting to minio: %v", err)
 	}
 
-	server, err := NewServer(db, minioClients, serverConfig)
+	server, err := NewServer(db, minioClient, serverConfig)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}

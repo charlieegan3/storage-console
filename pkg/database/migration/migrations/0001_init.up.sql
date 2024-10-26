@@ -12,29 +12,10 @@ CREATE TABLE IF NOT EXISTS tasks (
   operations INT NOT NULL DEFAULT 0
 );
 
-CREATE TABLE IF NOT EXISTS object_storage_providers (
-  id SERIAL PRIMARY KEY,
-  name TEXT NOT NULL,
-  UNIQUE (name)
-);
-
-CREATE TABLE IF NOT EXISTS buckets (
-  id SERIAL PRIMARY KEY,
-  name TEXT NOT NULL,
-
-  object_storage_provider_id INTEGER NOT NULL,
-  FOREIGN KEY (object_storage_provider_id) REFERENCES object_storage_providers(id),
-
-  UNIQUE (name),
-  CHECK (name != '')
-);
-
 CREATE TABLE IF NOT EXISTS objects (
   id SERIAL PRIMARY KEY,
   key TEXT NOT NULL,
   deleted_at TIMESTAMP NULL,
-  bucket_id INTEGER NOT NULL,
-  FOREIGN KEY (bucket_id) REFERENCES buckets(id),
   CHECK (key != ''),
   UNIQUE (key)
 );
