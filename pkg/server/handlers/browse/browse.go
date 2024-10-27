@@ -17,6 +17,11 @@ import (
 	"github.com/charlieegan3/storage-console/pkg/server/handlers"
 )
 
+const (
+	dataPath = "data/"
+	metaPath = "meta/"
+)
+
 type browseEntry struct {
 	Name        string
 	Key         string
@@ -133,21 +138,20 @@ func renderObject(
 	return func(w http.ResponseWriter, r *http.Request) {
 		var obj *minio.Object
 		var err error
+		var p string
+
 		if thumbKey != "" {
-			obj, err = mc.GetObject(
-				r.Context(),
-				opts.BucketName,
-				fmt.Sprintf("meta/thumbnail/%s.jpg", thumbKey),
-				minio.StatObjectOptions{},
-			)
+			p = path.Join(metaPath, fmt.Sprintf("thumbnail/%s.jpg", thumbKey))
 		} else {
-			obj, err = mc.GetObject(
-				r.Context(),
-				opts.BucketName,
-				objectPath,
-				minio.StatObjectOptions{},
-			)
+			p = objectPath
 		}
+
+		obj, err = mc.GetObject(
+			r.Context(),
+			opts.BucketName,
+			p,
+			minio.StatObjectOptions{},
+		)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 
@@ -172,10 +176,19 @@ func renderObject(
 
 		w.Header().Set("Content-Type", stat.ContentType)
 		w.Header().Set("Content-Length", fmt.Sprintf("%d", stat.Size))
+		w.Header().Set("ETag", stat.ETag)
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		w.Header().Set("Expires", time.Now().AddDate(10, 0, 0).Format(http.TimeFormat))
 		if download {
 			w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filepath.Base(objectPath)))
 		} else {
 			w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filepath.Base(objectPath)))
+		}
+
+		if r.Header.Get("If-None-Match") == stat.ETag {
+			w.WriteHeader(http.StatusNotModified)
+
+			return
 		}
 
 		_, err = io.Copy(w, obj)
@@ -218,6 +231,8 @@ func renderPreview(
 
 		buf := bytes.NewBuffer([]byte{})
 
+		viewPath := strings.TrimPrefix(objectPath, dataPath)
+
 		blobDetailsSQL := `
 select blobs.size, last_modified, md5, content_types.name from objects
 left join object_blobs on objects.id = object_blobs.object_id
@@ -227,7 +242,10 @@ where key = $1`
 		var size int64
 		var lastModified time.Time
 		var md5, contentType string
-		err = opts.DB.QueryRow(blobDetailsSQL, objectPath).Scan(&size, &lastModified, &md5, &contentType)
+		err = opts.DB.QueryRow(
+			blobDetailsSQL,
+			viewPath,
+		).Scan(&size, &lastModified, &md5, &contentType)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 
@@ -257,7 +275,7 @@ where key = $1`
 			Size                   string
 		}{
 			Opts:                   opts,
-			Breadcrumbs:            breadcrumbsFromPath(objectPath),
+			Breadcrumbs:            breadcrumbsFromPath(viewPath),
 			ContentType:            contentType,
 			ContentTypePreviewable: slices.Contains(previewableContentTypes, contentType),
 			Key:                    objectPath,
@@ -294,19 +312,21 @@ where key = $1`
 
 func renderDir(opts *handlers.Options, mc *minio.Client, tmpl *template.Template) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		p := path.Join("data", strings.TrimPrefix(r.URL.Path, "/b/"))
+		viewPath := strings.TrimPrefix(r.URL.Path, "/b/")
+
+		p := path.Join(dataPath, viewPath)
 		// a trailing / is required for path prefix listing,
 		// unless we are listing the root
 		if !strings.HasSuffix(p, "/") && p != "" {
 			p = p + "/"
 		}
 
-		bcs := breadcrumbsFromPath(p)
-
 		var keys []interface{}
 		var dirSizeArgs []interface{}
 		var orderedKeys []string
+
 		entries := make(map[string]*browseEntry)
+
 		for obj := range mc.ListObjects(
 			r.Context(),
 			opts.BucketName,
@@ -315,36 +335,40 @@ func renderDir(opts *handlers.Options, mc *minio.Client, tmpl *template.Template
 				Recursive: false,
 			},
 		) {
-			orderedKeys = append(orderedKeys, obj.Key)
-			isDir := strings.HasSuffix(obj.Key, "/")
+			key := strings.TrimPrefix(obj.Key, dataPath)
+
+			orderedKeys = append(orderedKeys, key)
+			isDir := strings.HasSuffix(key, "/")
 
 			contentType := "custom/unknown"
 			if isDir {
 				contentType = "custom/folder"
 			}
 
-			entries[obj.Key] = &browseEntry{
-				Name:        filepath.Base(obj.Key),
-				Key:         obj.Key,
+			entries[key] = &browseEntry{
+				Name:        filepath.Base(key),
+				Key:         key,
 				IsDir:       isDir,
 				ContentType: contentType,
 			}
 
 			if !isDir {
-				keys = append(keys, obj.Key)
+				keys = append(keys, key)
 			} else {
-				dirSizeArgs = append(dirSizeArgs, obj.Key)
+				dirSizeArgs = append(dirSizeArgs, key)
 			}
 		}
 
-		var placeholders string
-		for i := range keys {
-			placeholders += fmt.Sprintf("$%d", i+1)
-			if i < len(keys)-1 {
-				placeholders += ", "
+		if len(keys) > 0 {
+			var placeholders string
+			for i := range keys {
+				placeholders += fmt.Sprintf("$%d", i+1)
+				if i < len(keys)-1 {
+					placeholders += ", "
+				}
 			}
-		}
-		loadMetadataSQL := fmt.Sprintf(`
+
+			loadMetadataSQL := fmt.Sprintf(`
 SELECT
 	key,
 	size,
@@ -358,25 +382,7 @@ LEFT JOIN content_types ON blobs.content_type_id = content_types.id
 LEFT JOIN blob_metadata ON blobs.id = blob_metadata.blob_id
 WHERE key IN (%s)`, placeholders)
 
-		rows, err := opts.DB.Query(loadMetadataSQL, keys...)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-
-			_, err = w.Write([]byte(err.Error()))
-			if err != nil && opts.LoggerError != nil {
-				opts.LoggerError.Println(err)
-			}
-
-			return
-		}
-
-		for rows.Next() {
-			var key string
-			var size int64
-			var md5 string
-			var contentType string
-			var hasThumb bool
-			err = rows.Scan(&key, &size, &md5, &contentType, &hasThumb)
+			rows, err := opts.DB.Query(loadMetadataSQL, keys...)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 
@@ -388,11 +394,31 @@ WHERE key IN (%s)`, placeholders)
 				return
 			}
 
-			if e, ok := entries[key]; ok {
-				e.MD5 = md5
-				e.ContentType = contentType
-				e.Size = humanizeBytes(size)
-				e.HasThumb = hasThumb
+			for rows.Next() {
+				var key string
+				var size int64
+				var md5 string
+				var contentType string
+				var hasThumb bool
+
+				err = rows.Scan(&key, &size, &md5, &contentType, &hasThumb)
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+
+					_, err = w.Write([]byte(err.Error()))
+					if err != nil && opts.LoggerError != nil {
+						opts.LoggerError.Println(err)
+					}
+
+					return
+				}
+
+				if e, ok := entries[key]; ok {
+					e.MD5 = md5
+					e.ContentType = contentType
+					e.Size = humanizeBytes(size)
+					e.HasThumb = hasThumb
+				}
 			}
 		}
 
@@ -455,7 +481,7 @@ group by dir`, sb.String())
 
 		buf := bytes.NewBuffer([]byte{})
 
-		err = tmpl.ExecuteTemplate(buf, "base", struct {
+		err := tmpl.ExecuteTemplate(buf, "base", struct {
 			Opts        *handlers.Options
 			Path        string
 			Entries     []*browseEntry
@@ -464,7 +490,7 @@ group by dir`, sb.String())
 			Opts:        opts,
 			Path:        r.URL.Path,
 			Entries:     entryList,
-			Breadcrumbs: bcs,
+			Breadcrumbs: breadcrumbsFromPath(viewPath),
 		})
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)

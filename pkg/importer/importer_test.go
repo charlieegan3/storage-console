@@ -194,7 +194,7 @@ select (select key from obj) as obj;`
 		t.Fatalf("Could not run test contents SQL: %s", err)
 	}
 
-	if exp, got := "data/foo/bar/baz.jpg", obj; exp != got {
+	if exp, got := "foo/bar/baz.jpg", obj; exp != got {
 		t.Fatalf("Expected object key to be %s, got %s", exp, got)
 	}
 

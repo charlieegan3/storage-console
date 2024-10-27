@@ -28,25 +28,29 @@
   </div>
 
   <div>
-    <div class="flex flex-column mw7">
-      <h2 class="mb1">Blob Details</h2>
-      <div class="flex justify-between ba b--light-gray">
-        <div class="tc pa1">
-          <p class="m0"><strong>Size</strong></p>
-          <p class="ml2">{{.Size}}</p>
-        </div>
-        <div class="tc pa1">
-          <p class="m0"><strong>Last Modified</strong></p>
-          <p class="ml2">{{.LastModified}}</p>
-        </div>
-        <div class="tc pa1">
-          <p class="m0"><strong>MD5</strong></p>
-          <p class="ml2">{{.MD5}}</p>
-        </div>
-        <div class="tc pa1">
-          <p class="m0"><strong>Content Type</strong></p>
-          <p class="ml2">{{.ContentType}}</p>
-        </div>
+    <div class="flex flex-column mw6">
+      <h2 class="mb2">Object Details</h2>
+      <div class="ba b--light-gray">
+        <table class="collapse w-100">
+          <tbody>
+            <tr class="striped--light-gray">
+              <td class="pa2"><strong>Size</strong></td>
+              <td class="pa2">{{.Size}}</td>
+            </tr>
+            <tr class="striped--light-gray">
+              <td class="pa2"><strong>Last Modified</strong></td>
+              <td class="pa2">{{.LastModified}}</td>
+            </tr>
+            <tr class="striped--light-gray">
+              <td class="pa2"><strong>MD5</strong></td>
+              <td class="pa2"><code>{{.MD5}}</code></td>
+            </tr>
+            <tr class="striped--light-gray">
+              <td class="pa2"><strong>Content Type</strong></td>
+              <td class="pa2"><code>{{.ContentType}}</code></td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
   </div>

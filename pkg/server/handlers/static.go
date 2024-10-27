@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/tdewolff/minify/v2"
 	"github.com/tdewolff/minify/v2/css"
@@ -152,29 +153,46 @@ func BuildContentTypeIconHandler(opts *Options) (handler func(http.ResponseWrite
 		iconReader, err := staticContent.Open(fmt.Sprintf("static/icons/content-types/%s.svg", key))
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
+
 			_, err = w.Write([]byte("failed to open icon"))
 			if err != nil && opts.LoggerError != nil {
 				opts.LoggerError.Println(err)
 			}
+
 			return
 		}
+		defer iconReader.Close()
 
-		w.Header().Set("Content-Type", "image/svg+xml")
-
-		_, err = io.Copy(w, iconReader)
+		iconBytes, err := io.ReadAll(iconReader)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
-			_, err = w.Write([]byte("failed to copy icon"))
+
+			_, err = w.Write([]byte("failed to read icon"))
 			if err != nil && opts.LoggerError != nil {
 				opts.LoggerError.Println(err)
 			}
+
 			return
 		}
 
-		err = iconReader.Close()
+		etag := utils.CRC32Hash(iconBytes)
+
+		w.Header().Set("Content-Type", "image/svg+xml")
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", len(iconBytes)))
+		w.Header().Set("ETag", etag)
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		w.Header().Set("Expires", time.Now().AddDate(10, 0, 0).Format(http.TimeFormat))
+
+		if r.Header.Get("If-None-Match") == etag {
+			w.WriteHeader(http.StatusNotModified)
+
+			return
+		}
+
+		_, err = io.Copy(w, bytes.NewReader(iconBytes))
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
-			_, err = w.Write([]byte("failed to close icon reader"))
+			_, err = w.Write([]byte("failed to copy icon data"))
 			if err != nil && opts.LoggerError != nil {
 				opts.LoggerError.Println(err)
 			}
