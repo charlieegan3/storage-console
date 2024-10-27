@@ -136,6 +136,8 @@ func BuildContentTypeIconHandler(opts *Options) (handler func(http.ResponseWrite
 		switch lookup {
 		case "image/jpg", "image/jpeg":
 			key = "jpg"
+		case "image/png":
+			key = "png"
 		case "video/mp4":
 			key = "mp4"
 		case "application/pdf":
