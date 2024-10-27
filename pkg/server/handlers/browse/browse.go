@@ -48,7 +48,7 @@ func BuildHandler(opts *handlers.Options) (func(http.ResponseWriter, *http.Reque
 		return nil, fmt.Errorf("DB is required")
 	}
 
-	mc := opts.ObjectStorage
+	mc := opts.S3
 
 	tmplDir, err := template.ParseFS(
 		handlers.Templates,
