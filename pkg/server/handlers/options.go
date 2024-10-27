@@ -15,7 +15,7 @@ type Options struct {
 	LoggerError *log.Logger
 	LoggerInfo  *log.Logger
 
-	DB            *sql.DB
-	ObjectStorage *minio.Client
-	BucketName    string
+	DB         *sql.DB
+	S3         *minio.Client
+	BucketName string
 }

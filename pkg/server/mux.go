@@ -2,8 +2,11 @@ package server
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 
+	"github.com/charlieegan3/storage-console/pkg/importer"
+	"github.com/charlieegan3/storage-console/pkg/meta/thumbnail"
 	"github.com/charlieegan3/storage-console/pkg/server/handlers"
 	"github.com/charlieegan3/storage-console/pkg/server/handlers/browse"
 	"github.com/charlieegan3/storage-console/pkg/server/middlewares"
@@ -34,6 +37,34 @@ func newMux(opts *handlers.Options) (*http.ServeMux, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to build browse handler: %s", err)
 	}
+
+	mux.Handle(
+		"/reload",
+		middlewares.BuildAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			fmt.Println("reloading")
+
+			_, err := importer.Run(r.Context(), opts.DB, opts.S3, &importer.Options{
+				BucketName: opts.BucketName,
+				SchemaName: "storage_console",
+			})
+			if err != nil {
+				log.Printf("error running importer: %v", err)
+				return
+			}
+
+			_, err = thumbnail.Run(r.Context(), opts.DB, opts.S3, &thumbnail.Options{
+				SchemaName:   "storage_console",
+				BucketName:   opts.BucketName,
+				ThumbMaxSize: 300,
+			})
+			if err != nil {
+				log.Printf("error running thumbnail: %v", err)
+				return
+			}
+
+			fmt.Println("reloading done")
+		}), opts),
+	)
 
 	mux.Handle(
 		"/b/",
