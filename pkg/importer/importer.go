@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"path"
+	"strings"
 
 	"github.com/minio/minio-go/v7"
 
@@ -115,15 +117,18 @@ select key from objects;
 		opts.BucketName,
 		minio.ListObjectsOptions{Prefix: dataPath, Recursive: true},
 	) {
-		if _, ok := pathsToRemove[obj.Key]; ok {
-			pathsToRemove[obj.Key] = false
+
+		key := strings.TrimPrefix(obj.Key, dataPath)
+
+		if _, ok := pathsToRemove[key]; ok {
+			pathsToRemove[key] = false
 		}
 
 		objectInitSQL := `
 INSERT INTO objects (key) VALUES ($1)
 ON CONFLICT (key) DO NOTHING;
 `
-		result, err := txn.Exec(objectInitSQL, obj.Key)
+		result, err := txn.Exec(objectInitSQL, key)
 		if err != nil {
 			return nil, fmt.Errorf("could not create object: %s", err)
 		}
@@ -132,7 +137,7 @@ ON CONFLICT (key) DO NOTHING;
 			return nil, fmt.Errorf("could not check if object was created: %s", err)
 		}
 		if objCreated {
-			err = updateTask(db, taskID, fmt.Sprintf("object created: %s", obj.Key), true, false)
+			err = updateTask(db, taskID, fmt.Sprintf("object created: %s", key), true, false)
 			if err != nil {
 				return nil, fmt.Errorf("could not update task: %s", err)
 			}
@@ -144,7 +149,7 @@ ON CONFLICT (key) DO NOTHING;
 select id from objects where key = $1;
 `
 		var objectID int
-		err = txn.QueryRow(findExistingObjectSQL, obj.Key).Scan(&objectID)
+		err = txn.QueryRow(findExistingObjectSQL, key).Scan(&objectID)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("failed to get object: %s", err)
 		}
@@ -160,7 +165,12 @@ select id from blobs where md5 = $1;
 		if errors.Is(err, sql.ErrNoRows) {
 			r.ObjectStatCalls++
 
-			objData, err := minioClient.StatObject(ctx, opts.BucketName, obj.Key, minio.StatObjectOptions{})
+			objData, err := minioClient.StatObject(
+				ctx,
+				opts.BucketName,
+				path.Join(dataPath, key),
+				minio.StatObjectOptions{},
+			)
 			if err != nil {
 				return nil, fmt.Errorf("could not stat object: %s", err)
 			}
@@ -208,7 +218,7 @@ ON CONFLICT (object_id, blob_id) DO NOTHING;
 		if objBlobCreated {
 			r.BlobsLinked++
 
-			err = updateTask(db, taskID, fmt.Sprintf("object blob linked: %s", obj.Key), true, false)
+			err = updateTask(db, taskID, fmt.Sprintf("object blob linked: %s", key), true, false)
 			if err != nil {
 				return nil, fmt.Errorf("could not update task: %s", err)
 			}

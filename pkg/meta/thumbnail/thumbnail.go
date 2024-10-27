@@ -16,7 +16,10 @@ import (
 	"golang.org/x/image/draw"
 )
 
-const metaPath = "meta/"
+const (
+	metaPath = "meta/"
+	dataPath = "data/"
+)
 
 //go:embed missing_thumbs.sql
 var missingThumbsSQL string
@@ -82,7 +85,7 @@ func Run(
 		o, err := minioClient.GetObject(
 			ctx,
 			opts.BucketName,
-			thumb.key,
+			path.Join(dataPath, thumb.key),
 			minio.GetObjectOptions{},
 		)
 		if err != nil {
@@ -91,7 +94,7 @@ func Run(
 
 		stat, err := o.Stat()
 		if err != nil {
-			return nil, fmt.Errorf("could not get object stat: %w", err)
+			return nil, fmt.Errorf("could not stat object: %w", err)
 		}
 		if stat.ETag != thumb.md5 {
 			log.Println("md5 mismatch", thumb.key, thumb.md5, stat.ETag)

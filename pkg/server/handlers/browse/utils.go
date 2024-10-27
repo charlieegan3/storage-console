@@ -51,7 +51,7 @@ func breadcrumbsFromPath(path string) breadcrumbs {
 	parts := strings.Split(path, "/")
 
 	for i, part := range parts {
-		if part == "" {
+		if part == "" || part == "data" {
 			continue
 		}
 
