@@ -11,11 +11,22 @@ WITH has_thumbs AS (
         ON object_blobs.blob_id = blobs.id
     LEFT JOIN blob_metadata
         ON blob_metadata.blob_id = blobs.id
-    WHERE blobs.content_type_id in (select id from content_types where name = 'image/jpeg')
+    WHERE blobs.content_type_id IN (
+        SELECT id
+        FROM content_types
+        WHERE name IN (
+            'image/jpeg', 'image/jpg', 'image/jp2',
+            'image/tiff',
+            'image/png',
+            'image/webp',
+            'image/heic',
+            'image/gif',
+            'application/pdf'
+        )
+    )
 )
 SELECT
     id,
     md5,
     key
-FROM has_thumbs
-WHERE has_thumb IS false;
+FROM has_thumbs;

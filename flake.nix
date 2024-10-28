@@ -61,10 +61,15 @@
 
         packages.default = pkgs.buildGoModule {
           pname = "storage-console";
-          version = "0.2.0";
-          vendorHash = "sha256-AZPplQpXGz9d/+7WiCsgnhrNAGLNfvl1Urpkt69yI84=";
+          version = "0.3.0";
+          vendorHash = "sha256-80QdvKdsIFkvYlgB0WomfmGC/gFD5iFX5nu0G6hO9mQ=";
           src = ./.;
           checkPhase = "";
+          nativeBuildInputs = with pkgs; [ pkg-config ];
+          buildInputs = with pkgs; [
+            pkg-config
+            vips
+          ];
         };
 
         devShells = {
@@ -82,6 +87,9 @@
               golangci-lint
 
               minio
+
+              pkg-config
+              vips
 
               dprint
               nixfmt-rfc-style
