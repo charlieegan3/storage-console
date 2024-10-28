@@ -42,6 +42,10 @@ func Run(
 	minioClient *minio.Client,
 	opts *Options,
 ) (*Report, error) {
+	vips.LoggingSettings(func(messageDomain string, messageLevel vips.LogLevel, message string) {
+		return
+	}, vips.LogLevelCritical)
+
 	var success bool
 	txn, err := database.NewTxnWithSchema(db, opts.SchemaName)
 	if err != nil {
@@ -158,9 +162,4 @@ func Run(
 	success = true
 
 	return &rep, nil
-}
-
-func getSize(a, b, c int) int {
-	d := a * b / c
-	return (d + 1) & -1
 }
