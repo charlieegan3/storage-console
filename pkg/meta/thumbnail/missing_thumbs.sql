@@ -29,4 +29,5 @@ SELECT
     id,
     md5,
     key
-FROM has_thumbs;
+FROM has_thumbs
+WHERE NOT has_thumb;
