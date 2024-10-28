@@ -6,14 +6,13 @@ import (
 	"database/sql"
 	_ "embed"
 	"fmt"
-	"image"
-	"image/jpeg"
 	"log"
 	"path"
 
-	"github.com/charlieegan3/storage-console/pkg/database"
+	"github.com/davidbyttow/govips/v2/vips"
 	"github.com/minio/minio-go/v7"
-	"golang.org/x/image/draw"
+
+	"github.com/charlieegan3/storage-console/pkg/database"
 )
 
 const (
@@ -101,33 +100,40 @@ func Run(
 			continue
 		}
 
-		var origImage image.Image
-		origImage, _, err = image.Decode(o)
+		originalImage, err := vips.NewImageFromReader(o)
 		if err != nil {
-			return nil, fmt.Errorf("could not decode image: %w", err)
+			return nil, fmt.Errorf("could not load image %s: %w", thumb.key, err)
 		}
 
-		p := origImage.Bounds().Size()
-		w, h := opts.ThumbMaxSize, getSize(opts.ThumbMaxSize, p.Y, p.X)
-		if p.X < p.Y {
-			w, h = getSize(opts.ThumbMaxSize, p.X, p.Y), opts.ThumbMaxSize
+		longestSide := originalImage.Width()
+		if originalImage.Height() > originalImage.Width() {
+			longestSide = originalImage.Height()
 		}
-		dst := image.NewNRGBA(image.Rect(0, 0, w, h))
-		draw.Draw(dst, dst.Bounds(), image.White, image.Point{}, draw.Src)
-		draw.ApproxBiLinear.Scale(dst, dst.Bounds(), origImage, origImage.Bounds(), draw.Src, nil)
 
-		b := bytes.NewBuffer(nil)
-		err = jpeg.Encode(b, dst, nil)
+		if longestSide > opts.ThumbMaxSize {
+			err := originalImage.Resize(float64(opts.ThumbMaxSize)/float64(longestSide), vips.KernelNearest)
+			if err != nil {
+				return nil, fmt.Errorf("could not resize image: %w", err)
+			}
+		}
+
+		err = originalImage.AutoRotate()
 		if err != nil {
-			return nil, fmt.Errorf("could not encode thumbnail: %w", err)
+			return nil, fmt.Errorf("could not rotate image: %w", err)
+		}
+
+		ep := vips.NewDefaultJPEGExportParams()
+		thumbBytes, _, err := originalImage.Export(ep)
+		if err != nil {
+			return nil, fmt.Errorf("could not export image: %w", err)
 		}
 
 		_, err = minioClient.PutObject(
 			ctx,
 			opts.BucketName,
 			path.Join(metaPath, "thumbnail", thumb.md5+".jpg"),
-			b,
-			int64(b.Len()),
+			bytes.NewBuffer(thumbBytes),
+			int64(len(thumbBytes)),
 			minio.PutObjectOptions{
 				ContentType: "image/jpeg",
 			},
