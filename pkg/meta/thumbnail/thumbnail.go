@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	_ "embed"
 	"fmt"
+	"io"
 	"log"
 	"path"
 
@@ -42,48 +43,15 @@ func Run(
 	minioClient *minio.Client,
 	opts *Options,
 ) (*Report, error) {
-	vips.LoggingSettings(func(messageDomain string, messageLevel vips.LogLevel, message string) {
-		return
-	}, vips.LogLevelCritical)
+	vips.LoggingSettings(func(messageDomain string, messageLevel vips.LogLevel, message string) {}, vips.LogLevelCritical)
 
-	var success bool
-	txn, err := database.NewTxnWithSchema(db, opts.SchemaName)
-	if err != nil {
-		return nil, fmt.Errorf("could not create transaction: %w", err)
-	}
-	defer func() {
-		if !success {
-			err := txn.Rollback()
-			if err != nil {
-				log.Printf("could not rollback transaction: %s", err)
-			}
-		}
-	}()
+	var rep Report
 
-	rows, err := txn.Query(missingThumbsSQL)
+	missingThumbs, err := fetchMissingThumbs( db, opts.SchemaName)
 	if err != nil {
 		return nil, fmt.Errorf("could not get missing thumbs: %w", err)
 	}
 
-	var missingThumbs []struct {
-		id  int
-		md5 string
-		key string
-	}
-	for rows.Next() {
-		var thumb struct {
-			id  int
-			md5 string
-			key string
-		}
-		err = rows.Scan(&thumb.id, &thumb.md5, &thumb.key)
-		if err != nil {
-			return nil, fmt.Errorf("could not scan missing thumb: %w", err)
-		}
-		missingThumbs = append(missingThumbs, thumb)
-	}
-
-	var rep Report
 	for _, thumb := range missingThumbs {
 		o, err := minioClient.GetObject(
 			ctx,
@@ -92,74 +60,125 @@ func Run(
 			minio.GetObjectOptions{},
 		)
 		if err != nil {
-			return nil, fmt.Errorf("could not get object: %w", err)
-		}
-
-		stat, err := o.Stat()
-		if err != nil {
-			return nil, fmt.Errorf("could not stat object: %w", err)
-		}
-		if stat.ETag != thumb.md5 {
-			log.Println("md5 mismatch", thumb.key, thumb.md5, stat.ETag)
+			log.Printf("could not get object: %s", err)
 			continue
 		}
 
-		originalImage, err := vips.NewImageFromReader(o)
+		stat, err := o.Stat()
+		if err != nil || stat.ETag != thumb.md5 {
+			log.Printf("md5 mismatch or error for key %s: %v", thumb.key, err)
+			continue
+		}
+
+		thumbReader, size, err := processThumbnail(o, opts.ThumbMaxSize)
 		if err != nil {
-			return nil, fmt.Errorf("could not load image %s: %w", thumb.key, err)
-		}
-
-		longestSide := originalImage.Width()
-		if originalImage.Height() > originalImage.Width() {
-			longestSide = originalImage.Height()
-		}
-
-		if longestSide > opts.ThumbMaxSize {
-			err := originalImage.Resize(float64(opts.ThumbMaxSize)/float64(longestSide), vips.KernelNearest)
-			if err != nil {
-				return nil, fmt.Errorf("could not resize image: %w", err)
-			}
-		}
-
-		err = originalImage.AutoRotate()
-		if err != nil {
-			return nil, fmt.Errorf("could not rotate image: %w", err)
-		}
-
-		ep := vips.NewDefaultJPEGExportParams()
-		thumbBytes, _, err := originalImage.Export(ep)
-		if err != nil {
-			return nil, fmt.Errorf("could not export image: %w", err)
+			log.Printf("could not process image %s: %v", thumb.key, err)
+			continue
 		}
 
 		_, err = minioClient.PutObject(
 			ctx,
 			opts.BucketName,
 			path.Join(metaPath, "thumbnail", thumb.md5+".jpg"),
-			bytes.NewBuffer(thumbBytes),
-			int64(len(thumbBytes)),
+			thumbReader,
+			size,
 			minio.PutObjectOptions{
 				ContentType: "image/jpeg",
 			},
 		)
 		if err != nil {
-			return nil, fmt.Errorf("could not put thumbnail: %w", err)
+			log.Printf("could not put thumbnail: %v", err)
+			continue
 		}
 
-		_, err = txn.Exec(setThumbSQL, thumb.id)
+		err = setThumbnail(db, opts.SchemaName, thumb.id)
 		if err != nil {
-			return nil, fmt.Errorf("could not set thumb: %w", err)
+			log.Printf("could not set thumb for ID %d: %v", thumb.id, err)
+			continue
 		}
 
 		rep.ThumbsCreated++
 	}
 
-	err = txn.Commit()
+	return &rep, nil
+}
+
+func fetchMissingThumbs(db *sql.DB, schemaName string) ([]struct {
+	id       int
+	md5, key string
+}, error,
+) {
+	txn, err := database.NewTxnWithSchema(db, schemaName)
 	if err != nil {
-		return nil, fmt.Errorf("could not commit transaction: %w", err)
+		return nil, fmt.Errorf("could not create transaction: %w", err)
+	}
+	defer txn.Rollback()
+
+	rows, err := txn.Query(missingThumbsSQL)
+	if err != nil {
+		return nil, fmt.Errorf("could not query missing thumbs: %w", err)
+	}
+	defer rows.Close()
+
+	var thumbs []struct {
+		id       int
+		md5, key string
+	}
+	for rows.Next() {
+		var thumb struct {
+			id       int
+			md5, key string
+		}
+		if err := rows.Scan(&thumb.id, &thumb.md5, &thumb.key); err != nil {
+			return nil, fmt.Errorf("could not scan row: %w", err)
+		}
+		thumbs = append(thumbs, thumb)
 	}
 
-	success = true
+	return thumbs, nil
+}
 
-	return &rep, nil
+func setThumbnail(db *sql.DB, schemaName string, thumbID int) error {
+	txn, err := database.NewTxnWithSchema(db, schemaName)
+	if err != nil {
+		return fmt.Errorf("could not create transaction: %w", err)
+	}
+	defer txn.Rollback()
+
+	_, err = txn.Exec(setThumbSQL, thumbID)
+	if err != nil {
+		return fmt.Errorf("could not set thumb: %w", err)
+	}
+
+	return txn.Commit()
+}
+
+func processThumbnail(reader io.Reader, maxSize int) (io.Reader, int64, error) {
+	originalImage, err := vips.NewImageFromReader(reader)
+	if err != nil {
+		return nil, 0, fmt.Errorf("could not load image: %w", err)
+	}
+
+	longestSide := originalImage.Width()
+	if originalImage.Height() > originalImage.Width() {
+		longestSide = originalImage.Height()
+	}
+
+	if longestSide > maxSize {
+		if err := originalImage.Resize(float64(maxSize)/float64(longestSide), vips.KernelNearest); err != nil {
+			return nil, 0, fmt.Errorf("could not resize image: %w", err)
+		}
+	}
+
+	if err := originalImage.AutoRotate(); err != nil {
+		return nil, 0, fmt.Errorf("could not rotate image: %w", err)
+	}
+
+	ep := vips.NewDefaultJPEGExportParams()
+	thumbBytes, _, err := originalImage.Export(ep)
+	if err != nil {
+		return nil, 0, fmt.Errorf("could not export image: %w", err)
+	}
+
+	return bytes.NewBuffer(thumbBytes), int64(len(thumbBytes)), nil
 }

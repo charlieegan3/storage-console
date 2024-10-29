@@ -138,6 +138,10 @@ func BuildContentTypeIconHandler(opts *Options) (handler func(http.ResponseWrite
 			key = "jpg"
 		case "image/png":
 			key = "png"
+		case "image/gif":
+			key = "gif"
+		case "image/heic":
+			key = "heic"
 		case "video/mp4":
 			key = "mp4"
 		case "application/pdf":
@@ -150,6 +154,8 @@ func BuildContentTypeIconHandler(opts *Options) (handler func(http.ResponseWrite
 			key = "ics"
 		case "video/quicktime":
 			key = "mov"
+		case "text/csv":
+			key = "csv"
 		default:
 			key = "blank"
 		}
