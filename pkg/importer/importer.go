@@ -119,6 +119,11 @@ select key from objects;
 	) {
 		key := strings.TrimPrefix(obj.Key, dataPath)
 
+		if strings.HasSuffix(key, "/") {
+			fmt.Println("skipping directory", key)
+			continue
+		}
+
 		if _, ok := pathsToRemove[key]; ok {
 			pathsToRemove[key] = false
 		}
@@ -163,8 +168,6 @@ select id from blobs where md5 = $1;
 		}
 		if errors.Is(err, sql.ErrNoRows) {
 			r.ObjectStatCalls++
-
-			fmt.Println("importing", obj.Key, obj.ContentType)
 
 			objData, err := minioClient.StatObject(
 				ctx,
