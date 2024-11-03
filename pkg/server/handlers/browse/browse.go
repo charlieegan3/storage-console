@@ -12,9 +12,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/davidbyttow/govips/v2/vips"
 	"github.com/minio/minio-go/v7"
 
 	"github.com/charlieegan3/storage-console/pkg/server/handlers"
+	"github.com/charlieegan3/storage-console/pkg/utils"
 )
 
 const (
@@ -137,7 +139,6 @@ func renderObject(
 	thumbKey string,
 ) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var obj *minio.Object
 		var err error
 		var p string
 
@@ -147,6 +148,7 @@ func renderObject(
 			p = filepath.Join(dataPath, objectPath)
 		}
 
+		var obj io.Reader
 		obj, err = mc.GetObject(
 			r.Context(),
 			opts.BucketName,
@@ -164,7 +166,12 @@ func renderObject(
 			return
 		}
 
-		stat, err := obj.Stat()
+		stat, err := mc.StatObject(
+			r.Context(),
+			opts.BucketName,
+			p,
+			minio.StatObjectOptions{},
+		)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			_, err = w.Write([]byte(err.Error()))
@@ -176,10 +183,70 @@ func renderObject(
 		}
 
 		w.Header().Set("Content-Type", stat.ContentType)
-		w.Header().Set("Content-Length", fmt.Sprintf("%d", stat.Size))
-		w.Header().Set("ETag", stat.ETag)
 		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 		w.Header().Set("Expires", time.Now().AddDate(10, 0, 0).Format(http.TimeFormat))
+
+		etag := stat.ETag
+		contentLength := stat.Size
+
+		if r.Header.Get("If-None-Match") == etag {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+
+		if !download && stat.Size > 1024*1024 && stat.ContentType == "image/jpeg" {
+			originalImage, err := vips.NewImageFromReader(obj)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				opts.LoggerError.Println(err)
+				return
+			}
+
+			longestSide := originalImage.Width()
+			if originalImage.Height() > originalImage.Width() {
+				longestSide = originalImage.Height()
+			}
+
+			if longestSide > 1200 {
+				err := originalImage.Resize(float64(1200)/float64(longestSide), vips.KernelNearest)
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					opts.LoggerError.Println(err)
+					return
+				}
+			}
+
+			err = originalImage.AutoRotate()
+			if err != nil {
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					opts.LoggerError.Println(err)
+					return
+				}
+			}
+
+			ep := vips.NewDefaultJPEGExportParams()
+			thumbBytes, _, err := originalImage.Export(ep)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				opts.LoggerError.Println(err)
+				return
+			}
+
+			obj = bytes.NewReader(thumbBytes)
+
+			contentLength = int64(len(thumbBytes))
+			etag = utils.CRC32Hash(thumbBytes)
+
+			if r.Header.Get("If-None-Match") == etag {
+				w.WriteHeader(http.StatusNotModified)
+				return
+			}
+		}
+
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", contentLength))
+		w.Header().Set("ETag", etag)
+
 		if download {
 			w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filepath.Base(objectPath)))
 		} else {
