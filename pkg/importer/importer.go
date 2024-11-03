@@ -117,7 +117,6 @@ select key from objects;
 		opts.BucketName,
 		minio.ListObjectsOptions{Prefix: dataPath, Recursive: true},
 	) {
-
 		key := strings.TrimPrefix(obj.Key, dataPath)
 
 		if _, ok := pathsToRemove[key]; ok {
@@ -164,6 +163,8 @@ select id from blobs where md5 = $1;
 		}
 		if errors.Is(err, sql.ErrNoRows) {
 			r.ObjectStatCalls++
+
+			fmt.Println("importing", obj.Key, obj.ContentType)
 
 			objData, err := minioClient.StatObject(
 				ctx,
