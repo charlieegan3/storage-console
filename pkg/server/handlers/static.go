@@ -148,6 +148,8 @@ func BuildContentTypeIconHandler(opts *Options) (handler func(http.ResponseWrite
 			key = "docx"
 		case "text/calendar":
 			key = "ics"
+		case "video/quicktime":
+			key = "mov"
 		default:
 			key = "blank"
 		}
