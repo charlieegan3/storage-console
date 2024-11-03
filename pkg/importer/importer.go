@@ -176,11 +176,13 @@ select id from blobs where md5 = $1;
 				minio.StatObjectOptions{},
 			)
 			if err != nil {
-				return nil, fmt.Errorf("could not stat object: %s", err)
+				return nil, fmt.Errorf("could not stat object %s: %s", key, err)
 			}
 			if objData.ETag != obj.ETag {
-				return nil, fmt.Errorf("unexpected ETag: %s != %s", objData.ETag, obj.ETag)
+				return nil, fmt.Errorf("unexpected ETag %s: %s != %s", key, objData.ETag, obj.ETag)
 			}
+
+			fmt.Println("importing", key, objData.ContentType, obj.Size, obj.ETag)
 
 			blobInitSQL := `
 INSERT INTO blobs
