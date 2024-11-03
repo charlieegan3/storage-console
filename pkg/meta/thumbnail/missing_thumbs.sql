@@ -11,7 +11,9 @@ WITH has_thumbs AS (
         ON object_blobs.blob_id = blobs.id
     LEFT JOIN blob_metadata
         ON blob_metadata.blob_id = blobs.id
-    WHERE blobs.content_type_id IN (
+    WHERE
+      objects.deleted_at is NULL AND
+      blobs.content_type_id IN (
         SELECT id
         FROM content_types
         WHERE name IN (
