@@ -95,6 +95,7 @@ func BuildHandler(opts *handlers.Options) (func(http.ResponseWriter, *http.Reque
 			}
 
 			renderObject(opts, mc, objectPath, download != "", "")(w, r)
+
 			return
 		}
 
@@ -143,7 +144,7 @@ func renderObject(
 		if thumbKey != "" {
 			p = path.Join(metaPath, fmt.Sprintf("thumbnail/%s.jpg", thumbKey))
 		} else {
-			p = objectPath
+			p = filepath.Join(dataPath, objectPath)
 		}
 
 		obj, err = mc.GetObject(
@@ -262,12 +263,17 @@ where key = $1`
 			"image/jpeg",
 		}
 
+		dir := filepath.Dir(viewPath)
+
+		if dir == "." {
+			dir = "/"
+		}
+
 		err = tmpl.ExecuteTemplate(buf, "base", struct {
 			Opts                   *handlers.Options
 			Breadcrumbs            breadcrumbs
 			ContentType            string
 			ContentTypePreviewable bool
-			Key                    string
 			Dir                    string
 			File                   string
 			LastModified           string
@@ -278,8 +284,7 @@ where key = $1`
 			Breadcrumbs:            breadcrumbsFromPath(viewPath),
 			ContentType:            contentType,
 			ContentTypePreviewable: slices.Contains(previewableContentTypes, contentType),
-			Key:                    objectPath,
-			Dir:                    filepath.Dir(objectPath),
+			Dir:                    dir,
 			File:                   filepath.Base(objectPath),
 			LastModified:           lastModified.Format(time.RFC3339),
 			MD5:                    md5,
