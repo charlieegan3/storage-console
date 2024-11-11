@@ -5,8 +5,8 @@
       <div>
         {{ if .Breadcrumbs.Display }} {{ range $v := .Breadcrumbs.Items }} {{ if
         $v.Navigable }}
-        <a href="/b{{ $v.Path }}/">{{ $v.Name }}</a> / {{ else }} {{ $v.Name }}
-        {{ end }} {{ end }} {{ end }}
+        <a href="/b{{ $v.Path }}/?view=grid">{{ $v.Name }}</a> / {{ else }} {{
+        $v.Name }} {{ end }} {{ end }} {{ end }}
       </div>
       <div>
         <a href="{{ .Path }}" class="mr2">List View</a>
