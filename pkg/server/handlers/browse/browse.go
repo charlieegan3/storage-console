@@ -26,6 +26,7 @@ const (
 
 type browseEntry struct {
 	Name        string
+	ShortName   string
 	Key         string
 	IsDir       bool
 	ContentType string
@@ -417,8 +418,11 @@ func renderDir(opts *handlers.Options, mc *minio.Client, tmpl *template.Template
 				contentType = "custom/folder"
 			}
 
+			name := filepath.Base(key)
+
 			entries[key] = &browseEntry{
 				Name:        filepath.Base(key),
+				ShortName:   shortName(name),
 				Key:         key,
 				IsDir:       isDir,
 				ContentType: contentType,
@@ -587,4 +591,14 @@ group by dir`, sb.String())
 			return
 		}
 	}
+}
+
+func shortName(name string) string {
+	maxLength := 25
+
+	if len(name) < maxLength {
+		return name
+	}
+
+	return name[0:maxLength-1] + "..."
 }
