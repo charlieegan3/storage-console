@@ -35,6 +35,9 @@ type Options struct {
 	ThumbMaxSize int
 	SchemaName   string
 	BucketName   string
+
+	LoggerError *log.Logger
+	LoggerInfo  *log.Logger
 }
 
 func Run(
@@ -47,7 +50,7 @@ func Run(
 
 	var rep Report
 
-	missingThumbs, err := fetchMissingThumbs( db, opts.SchemaName)
+	missingThumbs, err := fetchMissingThumbs(db, opts.SchemaName)
 	if err != nil {
 		return nil, fmt.Errorf("could not get missing thumbs: %w", err)
 	}
@@ -60,19 +63,22 @@ func Run(
 			minio.GetObjectOptions{},
 		)
 		if err != nil {
-			log.Printf("could not get object: %s", err)
+			opts.LoggerError.Printf("could not get object: %s", err)
+
 			continue
 		}
 
 		stat, err := o.Stat()
 		if err != nil || stat.ETag != thumb.md5 {
-			log.Printf("md5 mismatch or error for key %s: %v", thumb.key, err)
+			opts.LoggerError.Printf("md5 mismatch or error for key %s: %v", thumb.key, err)
+
 			continue
 		}
 
 		thumbReader, size, err := processThumbnail(o, opts.ThumbMaxSize)
 		if err != nil {
-			log.Printf("could not process image %s: %v", thumb.key, err)
+			opts.LoggerError.Printf("could not process image %s: %v", thumb.key, err)
+
 			continue
 		}
 
@@ -87,17 +93,21 @@ func Run(
 			},
 		)
 		if err != nil {
-			log.Printf("could not put thumbnail: %v", err)
+			opts.LoggerError.Printf("could not put thumbnail: %v", err)
+
 			continue
 		}
 
 		err = setThumbnail(db, opts.SchemaName, thumb.id)
 		if err != nil {
-			log.Printf("could not set thumb for ID %d: %v", thumb.id, err)
+			opts.LoggerError.Printf("could not set thumb for ID %d: %v", thumb.id, err)
+
 			continue
 		}
 
 		rep.ThumbsCreated++
+
+		opts.LoggerInfo.Printf("thumbnail created (%d/%d): %s", rep.ThumbsCreated, len(missingThumbs), thumb.key)
 	}
 
 	return &rep, nil
