@@ -219,11 +219,9 @@ func renderObject(
 
 			err = originalImage.AutoRotate()
 			if err != nil {
-				if err != nil {
-					w.WriteHeader(http.StatusInternalServerError)
-					opts.LoggerError.Println(err)
-					return
-				}
+				w.WriteHeader(http.StatusInternalServerError)
+				opts.LoggerError.Println(err)
+				return
 			}
 
 			ep := vips.NewDefaultJPEGExportParams()
