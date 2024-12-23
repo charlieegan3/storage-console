@@ -88,10 +88,10 @@ func BuildHandler(opts *handlers.Options) (func(http.ResponseWriter, *http.Reque
 
 		// then render the object
 		if asset != "" {
-			objectPath := strings.TrimPrefix(r.URL.Path+asset, "/b/")
+			objectPath := strings.TrimPrefix(path.Join(r.URL.Path, asset), "/b/")
 
 			if thumb != "" {
-				objectPath := strings.TrimPrefix(r.URL.Path+asset, "/b/")
+				objectPath := strings.TrimPrefix(path.Join(r.URL.Path, asset), "/b/")
 
 				renderObject(opts, mc, objectPath, download != "", thumb)(w, r)
 				return
@@ -146,7 +146,7 @@ func renderObject(
 		if thumbKey != "" {
 			p = path.Join(metaPath, fmt.Sprintf("thumbnail/%s.jpg", thumbKey))
 		} else {
-			p = filepath.Join(dataPath, objectPath)
+			p = path.Join(dataPath, objectPath)
 		}
 
 		var obj io.Reader
