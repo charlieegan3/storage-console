@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log"
 	"path"
 	"strings"
 
@@ -18,6 +19,9 @@ const dataPath = "data/"
 type Options struct {
 	BucketName string
 	SchemaName string
+
+	LoggerError *log.Logger
+	LoggerInfo  *log.Logger
 }
 
 type Report struct {
@@ -182,7 +186,7 @@ select id from blobs where md5 = $1;
 				return nil, fmt.Errorf("unexpected ETag %s: %s != %s", key, objData.ETag, obj.ETag)
 			}
 
-			fmt.Println("importing", key, objData.ContentType, obj.Size, obj.ETag)
+			opts.LoggerError.Printf("importing %s %s %d %s", key, objData.ContentType, obj.Size, obj.ETag)
 
 			blobInitSQL := `
 INSERT INTO blobs

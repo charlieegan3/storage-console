@@ -65,8 +65,10 @@ func (s *Server) Start(ctx context.Context) error {
 		}
 
 		_, err := importer.Run(ctx, s.db, s.minioClient, &importer.Options{
-			BucketName: s.cfg.S3.BucketName,
-			SchemaName: "storage_console",
+			BucketName:  s.cfg.S3.BucketName,
+			SchemaName:  "storage_console",
+			LoggerInfo:  s.cfg.Server.LoggerInfo,
+			LoggerError: s.cfg.Server.LoggerError,
 		})
 		if err != nil {
 			log.Printf("error running importer: %v", err)
@@ -77,6 +79,8 @@ func (s *Server) Start(ctx context.Context) error {
 			SchemaName:   "storage_console",
 			BucketName:   s.cfg.S3.BucketName,
 			ThumbMaxSize: 300,
+			LoggerInfo:   s.cfg.Server.LoggerInfo,
+			LoggerError:  s.cfg.Server.LoggerError,
 		})
 		if err != nil {
 			log.Printf("error running thumbnail: %v", err)

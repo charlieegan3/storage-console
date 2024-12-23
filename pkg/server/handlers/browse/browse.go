@@ -127,7 +127,7 @@ func BuildHandler(opts *handlers.Options) (func(http.ResponseWriter, *http.Reque
 
 		_, err = w.Write([]byte("unknown path type"))
 		if err != nil && opts.LoggerError != nil {
-			opts.LoggerError.Println(err)
+			opts.LoggerError.Println(fmt.Errorf("failed to write response: %s", err))
 		}
 	}, nil
 }
@@ -161,7 +161,7 @@ func renderObject(
 
 			_, err = w.Write([]byte(err.Error()))
 			if err != nil && opts.LoggerError != nil {
-				opts.LoggerError.Println(err)
+				opts.LoggerError.Println(fmt.Errorf("failed to get object: %s", err))
 			}
 
 			return
@@ -177,7 +177,7 @@ func renderObject(
 			w.WriteHeader(http.StatusInternalServerError)
 			_, err = w.Write([]byte(err.Error()))
 			if err != nil && opts.LoggerError != nil {
-				opts.LoggerError.Println(err)
+				opts.LoggerError.Println(fmt.Errorf("failed to get object stat: %s", err))
 			}
 
 			return
@@ -199,7 +199,7 @@ func renderObject(
 			originalImage, err := vips.NewImageFromReader(obj)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
-				opts.LoggerError.Println(err)
+				opts.LoggerError.Println(fmt.Errorf("failed to create image from reader: %s", err))
 				return
 			}
 
@@ -212,7 +212,7 @@ func renderObject(
 				err := originalImage.Resize(float64(1200)/float64(longestSide), vips.KernelNearest)
 				if err != nil {
 					w.WriteHeader(http.StatusInternalServerError)
-					opts.LoggerError.Println(err)
+					opts.LoggerError.Println(fmt.Errorf("failed to resize image: %s", err))
 					return
 				}
 			}
@@ -220,7 +220,7 @@ func renderObject(
 			err = originalImage.AutoRotate()
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
-				opts.LoggerError.Println(err)
+				opts.LoggerError.Println(fmt.Errorf("failed to auto rotate image: %s", err))
 				return
 			}
 
@@ -228,7 +228,7 @@ func renderObject(
 			thumbBytes, _, err := originalImage.Export(ep)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
-				opts.LoggerError.Println(err)
+				opts.LoggerError.Println(fmt.Errorf("failed to export image: %s", err))
 				return
 			}
 
@@ -264,7 +264,7 @@ func renderObject(
 
 			_, err = w.Write([]byte(err.Error()))
 			if err != nil && opts.LoggerError != nil {
-				opts.LoggerError.Println(err)
+				opts.LoggerError.Println(fmt.Errorf("failed to copy object to response: %s", err))
 			}
 
 			return
@@ -290,7 +290,7 @@ func renderPreview(
 
 			_, err = w.Write([]byte(err.Error()))
 			if err != nil && opts.LoggerError != nil {
-				opts.LoggerError.Println(err)
+				opts.LoggerError.Println(fmt.Errorf("failed to stat object: %s", err))
 			}
 
 			return
@@ -318,7 +318,7 @@ where key = $1`
 
 			_, err = w.Write([]byte(err.Error()))
 			if err != nil && opts.LoggerError != nil {
-				opts.LoggerError.Println(err)
+				opts.LoggerError.Println(fmt.Errorf("failed to get blob details: %s", err))
 			}
 
 			return
@@ -361,7 +361,7 @@ where key = $1`
 
 			_, err = w.Write([]byte(err.Error()))
 			if err != nil && opts.LoggerError != nil {
-				opts.LoggerError.Println(err)
+				opts.LoggerError.Println(fmt.Errorf("failed to execute template: %s", err))
 			}
 
 			return
@@ -373,7 +373,7 @@ where key = $1`
 
 			_, err = w.Write([]byte(err.Error()))
 			if err != nil && opts.LoggerError != nil {
-				opts.LoggerError.Println(err)
+				opts.LoggerError.Println(fmt.Errorf("failed to copy buffer to response: %s", err))
 			}
 
 			return
@@ -462,7 +462,7 @@ WHERE key IN (%s)`, placeholders)
 
 				_, err = w.Write([]byte(err.Error()))
 				if err != nil && opts.LoggerError != nil {
-					opts.LoggerError.Println(err)
+					opts.LoggerError.Println(fmt.Errorf("failed to load metadata: %s", err))
 				}
 
 				return
@@ -481,7 +481,7 @@ WHERE key IN (%s)`, placeholders)
 
 					_, err = w.Write([]byte(err.Error()))
 					if err != nil && opts.LoggerError != nil {
-						opts.LoggerError.Println(err)
+						opts.LoggerError.Println(fmt.Errorf("failed to scan metadata: %s", err))
 					}
 
 					return
@@ -541,7 +541,7 @@ group by dir`, sb.String())
 
 					_, err = w.Write([]byte(err.Error()))
 					if err != nil && opts.LoggerError != nil {
-						opts.LoggerError.Println(err)
+						opts.LoggerError.Println(fmt.Errorf("failed to scan dir size: %s", err))
 					}
 
 					return
@@ -571,7 +571,7 @@ group by dir`, sb.String())
 
 			_, err = w.Write([]byte(err.Error()))
 			if err != nil && opts.LoggerError != nil {
-				opts.LoggerError.Println(err)
+				opts.LoggerError.Println(fmt.Errorf("failed to execute template: %s", err))
 			}
 
 			return
@@ -583,7 +583,7 @@ group by dir`, sb.String())
 
 			_, err = w.Write([]byte(err.Error()))
 			if err != nil && opts.LoggerError != nil {
-				opts.LoggerError.Println(err)
+				opts.LoggerError.Println(fmt.Errorf("failed to copy buffer to response: %s", err))
 			}
 
 			return
