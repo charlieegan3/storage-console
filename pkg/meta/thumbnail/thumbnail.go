@@ -182,8 +182,6 @@ func processThumbnail(reader io.Reader, maxSize int) (io.Reader, int64, error) {
 		longestSide = originalImage.Height()
 	}
 
-	fmt.Println(longestSide)
-
 	if longestSide > maxSize {
 		if longestSide <= 0 {
 			return nil, 0, fmt.Errorf("invalid longestSide: %d", longestSide)
