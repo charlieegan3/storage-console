@@ -62,7 +62,7 @@
         packages.default = pkgs.buildGoModule {
           pname = "storage-console";
           version = "0.3.0";
-          vendorHash = "sha256-80QdvKdsIFkvYlgB0WomfmGC/gFD5iFX5nu0G6hO9mQ=";
+          vendorHash = "sha256-cINbqctd0ZcXwDgSpojSVT3rRc34VSHtEcoA5GirokI=";
           src = ./.;
           checkPhase = "";
           nativeBuildInputs = with pkgs; [ pkg-config ];
