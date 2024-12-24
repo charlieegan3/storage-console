@@ -12,7 +12,11 @@ type ThumbnailProcessor struct {
 	MaxSize int
 }
 
-func (p *ThumbnailProcessor) Process(objectInfo *minio.ObjectInfo, content []byte) ([]meta.PutMetadata, error) {
+func (t *ThumbnailProcessor) Name() string {
+	return "color"
+}
+
+func (t *ThumbnailProcessor) Process(objectInfo *minio.ObjectInfo, content []byte) ([]meta.PutMetadata, error) {
 	vips.Startup(nil)
 	defer vips.Shutdown()
 
@@ -33,8 +37,8 @@ func (p *ThumbnailProcessor) Process(objectInfo *minio.ObjectInfo, content []byt
 		longestSide = height
 	}
 
-	if longestSide > p.MaxSize {
-		scale := float64(p.MaxSize) / float64(longestSide)
+	if longestSide > t.MaxSize {
+		scale := float64(t.MaxSize) / float64(longestSide)
 		if err := image.Resize(scale, vips.KernelLanczos3); err != nil {
 			return nil, fmt.Errorf("could not resize image: %w", err)
 		}
@@ -46,12 +50,8 @@ func (p *ThumbnailProcessor) Process(objectInfo *minio.ObjectInfo, content []byt
 		return nil, fmt.Errorf("could not export thumbnail: %w", err)
 	}
 
-	thumbnailPath := fmt.Sprintf("meta/thumbnail/%s.jpg", objectInfo.ETag)
 	putMetadata := meta.PutMetadata{
-		Path: thumbnailPath,
-		PutObjectOptions: minio.PutObjectOptions{
-			ContentType: "image/jpeg",
-		},
+		ContentType: meta.JPG,
 		Content: thumbnailBytes,
 	}
 

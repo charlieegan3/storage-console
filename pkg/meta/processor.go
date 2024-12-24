@@ -4,12 +4,19 @@ import (
 	"github.com/minio/minio-go/v7"
 )
 
+type ContentType int
+
+const (
+	JPG ContentType = iota
+	JSON
+)
+
 type PutMetadata struct {
-	Path    string
-	Content []byte
-	minio.PutObjectOptions
+	ContentType ContentType
+	Content     []byte
 }
 
 type MetadataOperationProcessor interface {
-	Process(objectInfo minio.ObjectInfo, content []byte) ([]PutMetadata, error)
+	Name() string
+	Process(objectInfo *minio.ObjectInfo, content []byte) ([]PutMetadata, error)
 }

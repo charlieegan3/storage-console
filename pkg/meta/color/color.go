@@ -16,6 +16,10 @@ import (
 
 type ColorAnalysisProcessor struct{}
 
+func (c *ColorAnalysisProcessor) Name() string {
+	return "color"
+}
+
 type ClassifiedColor struct {
 	Hex      string                  `json:"hex"`
 	Name     string                  `json:"name"`
@@ -67,7 +71,7 @@ func classifyColor(r, g, b uint32) string {
 	return closestColor
 }
 
-func (p *ColorAnalysisProcessor) Process(objectInfo minio.ObjectInfo, content []byte) ([]meta.PutMetadata, error) {
+func (c *ColorAnalysisProcessor) Process(objectInfo minio.ObjectInfo, content []byte) ([]meta.PutMetadata, error) {
 	img, _, err := image.Decode(bytes.NewReader(content))
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode image: %w", err)
@@ -98,11 +102,8 @@ func (p *ColorAnalysisProcessor) Process(objectInfo minio.ObjectInfo, content []
 	}
 
 	putMetadata := meta.PutMetadata{
-		Path: fmt.Sprintf("meta/color_analysis/%s.json", objectInfo.ETag),
-		PutObjectOptions: minio.PutObjectOptions{
-			ContentType: "application/json",
-		},
-		Content: jsonData,
+		ContentType: meta.JSON,
+		Content:     jsonData,
 	}
 
 	return []meta.PutMetadata{putMetadata}, nil

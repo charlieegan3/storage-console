@@ -13,6 +13,10 @@ import (
 
 type ExifMetadataProcessor struct{}
 
+func (p *ExifMetadataProcessor) Name() string {
+	return "exif"
+}
+
 func (p *ExifMetadataProcessor) Process(objectInfo *minio.ObjectInfo, content []byte) ([]meta.PutMetadata, error) {
 	metadata := make(map[string]interface{})
 
@@ -57,11 +61,8 @@ func (p *ExifMetadataProcessor) Process(objectInfo *minio.ObjectInfo, content []
 	}
 
 	putMetadata := meta.PutMetadata{
-		Path: fmt.Sprintf("meta/exif/%s.json", objectInfo.ETag),
-		PutObjectOptions: minio.PutObjectOptions{
-			ContentType: "application/json",
-		},
-		Content: jsonData,
+		ContentType: meta.JSON,
+		Content:     jsonData,
 	}
 
 	return []meta.PutMetadata{putMetadata}, nil
