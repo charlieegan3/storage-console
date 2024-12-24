@@ -88,6 +88,8 @@
 
               minio
 
+              exiftool
+
               pkg-config
               vips
 
