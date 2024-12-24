@@ -2,6 +2,7 @@ package thumbnail
 
 import (
 	"context"
+	"log"
 	"os"
 	"testing"
 
@@ -82,10 +83,14 @@ func TestRun(t *testing.T) {
 		}
 	}
 
+	logger := log.New(test.NewTLogWriter(t), "", 0)
+
 	// run the importer to set the initial state
 	importReport, err := importer.Run(ctx, db, minioClient, &importer.Options{
-		BucketName: "example",
-		SchemaName: "storage_console",
+		BucketName:  "example",
+		SchemaName:  "storage_console",
+		LoggerError: logger,
+		LoggerInfo:  logger,
 	})
 	if err != nil {
 		t.Fatalf("Could not run import: %s", err)
@@ -95,8 +100,11 @@ func TestRun(t *testing.T) {
 	}
 
 	thumbReport, err := Run(ctx, db, minioClient, &Options{
-		SchemaName: "storage_console",
-		BucketName: "example",
+		SchemaName:   "storage_console",
+		BucketName:   "example",
+		ThumbMaxSize: 300,
+		LoggerError:  logger,
+		LoggerInfo:   logger,
 	})
 	if err != nil {
 		t.Fatalf("Could not run thumbnail task: %s", err)

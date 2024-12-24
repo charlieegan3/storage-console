@@ -3,6 +3,8 @@ package importer
 import (
 	"bytes"
 	"context"
+	"log"
+	"os"
 	"testing"
 
 	"github.com/minio/minio-go/v7"
@@ -86,10 +88,14 @@ select initiator, status, operations from tasks order by created_at desc limit 1
 		}
 	}
 
+	logger := log.New(os.Stderr, "", log.LstdFlags)
+
 	// run the importer
 	report, err := Run(ctx, db, minioClient, &Options{
-		BucketName: "example",
-		SchemaName: "storage_console",
+		BucketName:  "example",
+		SchemaName:  "storage_console",
+		LoggerError: logger,
+		LoggerInfo:  logger,
 	})
 	if err != nil {
 		t.Fatalf("Could not run import: %s", err)
@@ -216,8 +222,10 @@ select (select key from obj) as obj;`
 
 	// run the importer
 	report, err = Run(ctx, db, minioClient, &Options{
-		BucketName: "example",
-		SchemaName: "storage_console",
+		BucketName:  "example",
+		SchemaName:  "storage_console",
+		LoggerError: logger,
+		LoggerInfo:  logger,
 	})
 	if err != nil {
 		t.Fatalf("Could not run import: %s", err)

@@ -50,6 +50,10 @@ func Run(
 
 	var rep Report
 
+	if opts.ThumbMaxSize <= 0 {
+		return nil, fmt.Errorf("invalid ThumbMaxSize: %d", opts.ThumbMaxSize)
+	}
+
 	missingThumbs, err := fetchMissingThumbs(db, opts.SchemaName)
 	if err != nil {
 		return nil, fmt.Errorf("could not get missing thumbs: %w", err)
@@ -164,6 +168,10 @@ func setThumbnail(db *sql.DB, schemaName string, thumbID int) error {
 }
 
 func processThumbnail(reader io.Reader, maxSize int) (io.Reader, int64, error) {
+	if maxSize <= 0 {
+		return nil, 0, fmt.Errorf("invalid maxSize: %d", maxSize)
+	}
+
 	originalImage, err := vips.NewImageFromReader(reader)
 	if err != nil {
 		return nil, 0, fmt.Errorf("could not load image: %w", err)
@@ -174,8 +182,19 @@ func processThumbnail(reader io.Reader, maxSize int) (io.Reader, int64, error) {
 		longestSide = originalImage.Height()
 	}
 
+	fmt.Println(longestSide)
+
 	if longestSide > maxSize {
-		if err := originalImage.Resize(float64(maxSize)/float64(longestSide), vips.KernelNearest); err != nil {
+		if longestSide <= 0 {
+			return nil, 0, fmt.Errorf("invalid longestSide: %d", longestSide)
+		}
+
+		scale := float64(maxSize) / float64(longestSide)
+		if scale <= 0 {
+			return nil, 0, fmt.Errorf("invalid scaling factor: %f", scale)
+		}
+
+		if err := originalImage.Resize(scale, vips.KernelNearest); err != nil {
 			return nil, 0, fmt.Errorf("could not resize image: %w", err)
 		}
 	}
