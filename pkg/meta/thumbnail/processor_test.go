@@ -5,8 +5,10 @@ import (
 	"os"
 	"testing"
 
-	"github.com/charlieegan3/storage-console/pkg/meta/thumbnail"
 	"github.com/minio/minio-go/v7"
+
+	"github.com/charlieegan3/storage-console/pkg/meta"
+	"github.com/charlieegan3/storage-console/pkg/meta/thumbnail"
 )
 
 func TestThumbnailProcessor(t *testing.T) {
@@ -36,12 +38,8 @@ func TestThumbnailProcessor(t *testing.T) {
 		t.Fatalf("expected 1 metadata entry, got %d", len(metadata))
 	}
 
-	if metadata[0].Path != "meta/thumbnail/foobar.jpg" {
-		t.Fatalf("expected path 'meta/thumbnail/foobar.jpg', got '%s'", metadata[0].Path)
-	}
-
-	if metadata[0].ContentType != "image/jpeg" {
-		t.Errorf("expected content type 'image/jpeg', got '%s'", metadata[0].ContentType)
+	if metadata[0].ContentType != meta.JPG {
+		t.Fatalf("expected content type 'jpeg', got '%v'", metadata[0].ContentType)
 	}
 
 	if !bytes.Equal(metadata[0].Content, expectedThumbnail) {

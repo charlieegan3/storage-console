@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/charlieegan3/storage-console/pkg/meta"
 	"github.com/charlieegan3/storage-console/pkg/meta/exif"
 	"github.com/minio/minio-go/v7"
 )
@@ -30,12 +31,8 @@ func TestExifMetadataProcessor(t *testing.T) {
 		t.Fatalf("expected 1 metadata entry, got %d", len(metadata))
 	}
 
-	if metadata[0].Path != "meta/exif/foobar.json" {
-		t.Fatalf("expected path 'meta/exif/foobar.json', got '%s'", metadata[0].Path)
-	}
-
-	if metadata[0].ContentType != "application/json" {
-		t.Errorf("expected content type 'application/json', got '%s'", metadata[0].ContentType)
+	if metadata[0].ContentType != meta.JSON {
+		t.Fatalf("expected content type 'json', got '%v'", metadata[0].ContentType)
 	}
 
 	expectedMake := "SONY"
