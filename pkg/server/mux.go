@@ -56,6 +56,8 @@ func newMux(opts *handlers.Options) (*http.ServeMux, error) {
 				SchemaName:   "storage_console",
 				BucketName:   opts.BucketName,
 				ThumbMaxSize: 300,
+				LoggerError:  opts.LoggerError,
+				LoggerInfo:   opts.LoggerInfo,
 			})
 			if err != nil {
 				log.Printf("error running thumbnail: %v", err)
