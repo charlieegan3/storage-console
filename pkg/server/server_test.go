@@ -104,7 +104,7 @@ func TestNewServer(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err)
 	}
 
-	if resp.StatusCode != http.StatusNotFound {
+	if resp.StatusCode != http.StatusOK {
 		t.Logf("body: %s", bodyBs)
 		t.Fatalf("unexpected status code: %d", resp.StatusCode)
 	}

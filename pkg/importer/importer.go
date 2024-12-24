@@ -186,7 +186,13 @@ select id from blobs where md5 = $1;
 				return nil, fmt.Errorf("unexpected ETag %s: %s != %s", key, objData.ETag, obj.ETag)
 			}
 
-			opts.LoggerError.Printf("importing %s %s %d %s", key, objData.ContentType, obj.Size, obj.ETag)
+			opts.LoggerError.Printf(
+				"importing %s %s %d %s",
+				key,
+				objData.ContentType,
+				objData.Size,
+				objData.ETag,
+			)
 
 			blobInitSQL := `
 INSERT INTO blobs
