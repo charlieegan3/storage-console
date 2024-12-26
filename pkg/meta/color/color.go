@@ -2,6 +2,7 @@ package color
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"image"
@@ -18,6 +19,10 @@ type ColorAnalysisProcessor struct{}
 
 func (c *ColorAnalysisProcessor) Name() string {
 	return "color"
+}
+
+func (t *ColorAnalysisProcessor) ContentTypes() []string {
+	return []string{"image/jpeg", "image/jpg", "image/jp2"}
 }
 
 type ClassifiedColor struct {
@@ -71,7 +76,11 @@ func classifyColor(r, g, b uint32) string {
 	return closestColor
 }
 
-func (c *ColorAnalysisProcessor) Process(objectInfo minio.ObjectInfo, content []byte) ([]meta.PutMetadata, error) {
+func (c *ColorAnalysisProcessor) Process(
+	ctx context.Context,
+	objectInfo *minio.ObjectInfo,
+	content []byte,
+) ([]meta.PutMetadata, error) {
 	img, _, err := image.Decode(bytes.NewReader(content))
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode image: %w", err)

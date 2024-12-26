@@ -14,6 +14,7 @@ import (
 	"github.com/minio/minio-go/v7/pkg/credentials"
 
 	"github.com/charlieegan3/storage-console/pkg/config"
+	"github.com/charlieegan3/storage-console/pkg/test"
 	"github.com/charlieegan3/storage-console/pkg/utils"
 )
 
@@ -21,10 +22,12 @@ func TestNewServer(t *testing.T) {
 	var err error
 	ctx := context.Background()
 
-	port, err := utils.FreePort(3000)
+	port, err := utils.FreePort(0)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
+
+	logger := log.New(test.NewTLogWriter(t), "", 0)
 
 	serverConfig := &config.Config{
 		Server: config.Server{
@@ -33,6 +36,8 @@ func TestNewServer(t *testing.T) {
 			Address:     "localhost",
 			RegisterMux: false,
 			RunImporter: false,
+			LoggerError: logger,
+			LoggerInfo:  logger,
 		},
 		S3: config.S3{
 			Endpoint:   "localhost:9000",
@@ -104,7 +109,8 @@ func TestNewServer(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err)
 	}
 
-	if resp.StatusCode != http.StatusOK {
+	// this is meant to be a 404 since the mux is not registered
+	if resp.StatusCode != http.StatusNotFound {
 		t.Logf("body: %s", bodyBs)
 		t.Fatalf("unexpected status code: %d", resp.StatusCode)
 	}

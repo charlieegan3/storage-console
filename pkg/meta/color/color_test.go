@@ -1,6 +1,7 @@
 package color_test
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"testing"
@@ -22,7 +23,7 @@ func TestColorAnalysisProcessor(t *testing.T) {
 
 	processor := color.ColorAnalysisProcessor{}
 
-	metadata, err := processor.Process(minio.ObjectInfo{}, content)
+	metadata, err := processor.Process(context.Background(), &minio.ObjectInfo{}, content)
 	if err != nil {
 		t.Fatalf("failed to process image: %v", err)
 	}

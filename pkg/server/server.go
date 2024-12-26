@@ -4,14 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 	"net/http"
 
 	"github.com/minio/minio-go/v7"
 
 	"github.com/charlieegan3/storage-console/pkg/config"
 	"github.com/charlieegan3/storage-console/pkg/importer"
-	"github.com/charlieegan3/storage-console/pkg/meta/thumbnail"
+	"github.com/charlieegan3/storage-console/pkg/meta/runner"
 	"github.com/charlieegan3/storage-console/pkg/server/handlers"
 )
 
@@ -71,36 +70,37 @@ func (s *Server) Start(ctx context.Context) error {
 			LoggerError: s.cfg.Server.LoggerError,
 		})
 		if err != nil {
-			log.Printf("error running importer: %v", err)
+			s.cfg.Server.LoggerError.Printf("error running importer: %v", err)
 			return
 		}
 
-		_, err = thumbnail.Run(ctx, s.db, s.minioClient, &thumbnail.Options{
-			SchemaName:   "storage_console",
-			BucketName:   s.cfg.S3.BucketName,
-			ThumbMaxSize: 300,
-			LoggerInfo:   s.cfg.Server.LoggerInfo,
-			LoggerError:  s.cfg.Server.LoggerError,
+		_, err = runner.Run(ctx, s.db, s.minioClient, &runner.Options{
+			BucketName:        s.cfg.S3.BucketName,
+			SchemaName:        "storage_console",
+			EnabledProcessors: []string{"thumbnail"},
+			LoggerInfo:        s.cfg.Server.LoggerInfo,
+			LoggerError:       s.cfg.Server.LoggerError,
 		})
 		if err != nil {
-			log.Printf("error running thumbnail: %v", err)
+			s.cfg.Server.LoggerError.Printf("error running runner: %v", err)
 			return
 		}
-		log.Println("imported")
+
+		s.cfg.Server.LoggerInfo.Println("imported")
 	}()
 
 	go func() {
 		<-ctx.Done()
 		err = s.httpServer.Shutdown(ctx)
 		if err != nil {
-			log.Println(err)
+			s.cfg.Server.LoggerError.Println("failed to shutdown", err)
 		}
 	}()
 
 	go func() {
 		err = s.httpServer.ListenAndServe()
 		if err != nil {
-			log.Println(err)
+			s.cfg.Server.LoggerError.Println("failed to listen and serve", err)
 		}
 	}()
 

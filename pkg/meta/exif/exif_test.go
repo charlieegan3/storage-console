@@ -1,6 +1,7 @@
 package exif_test
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"testing"
@@ -20,7 +21,7 @@ func TestExifMetadataProcessor(t *testing.T) {
 
 	processor := exif.ExifMetadataProcessor{}
 
-	metadata, err := processor.Process(&minio.ObjectInfo{
+	metadata, err := processor.Process(context.Background(), &minio.ObjectInfo{
 		ETag: "foobar",
 	}, content)
 	if err != nil {

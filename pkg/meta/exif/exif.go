@@ -1,6 +1,7 @@
 package exif
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
@@ -17,7 +18,17 @@ func (p *ExifMetadataProcessor) Name() string {
 	return "exif"
 }
 
-func (p *ExifMetadataProcessor) Process(objectInfo *minio.ObjectInfo, content []byte) ([]meta.PutMetadata, error) {
+func (t *ExifMetadataProcessor) ContentTypes() []string {
+	return []string{
+		"image/jpeg", "image/jpg", "image/jp2",
+	}
+}
+
+func (p *ExifMetadataProcessor) Process(
+	ctx context.Context,
+	objectInfo *minio.ObjectInfo,
+	content []byte,
+) ([]meta.PutMetadata, error) {
 	metadata := make(map[string]interface{})
 
 	rawExif, err := exif.SearchAndExtractExif(content)
