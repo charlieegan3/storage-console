@@ -6,7 +6,6 @@ import (
 	"net/http"
 
 	"github.com/charlieegan3/storage-console/pkg/importer"
-	"github.com/charlieegan3/storage-console/pkg/meta/thumbnail"
 	"github.com/charlieegan3/storage-console/pkg/server/handlers"
 	"github.com/charlieegan3/storage-console/pkg/server/handlers/browse"
 	"github.com/charlieegan3/storage-console/pkg/server/middlewares"
@@ -49,18 +48,6 @@ func newMux(opts *handlers.Options) (*http.ServeMux, error) {
 			})
 			if err != nil {
 				log.Printf("error running importer: %v", err)
-				return
-			}
-
-			_, err = thumbnail.Run(r.Context(), opts.DB, opts.S3, &thumbnail.Options{
-				SchemaName:   "storage_console",
-				BucketName:   opts.BucketName,
-				ThumbMaxSize: 300,
-				LoggerError:  opts.LoggerError,
-				LoggerInfo:   opts.LoggerInfo,
-			})
-			if err != nil {
-				log.Printf("error running thumbnail: %v", err)
 				return
 			}
 
