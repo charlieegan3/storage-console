@@ -14,6 +14,8 @@ import (
 
 	"github.com/charlieegan3/storage-console/pkg/database"
 	"github.com/charlieegan3/storage-console/pkg/meta"
+	"github.com/charlieegan3/storage-console/pkg/meta/color"
+	"github.com/charlieegan3/storage-console/pkg/meta/exif"
 	"github.com/charlieegan3/storage-console/pkg/meta/thumbnail"
 	"github.com/minio/minio-go/v7"
 )
@@ -54,14 +56,12 @@ func Run(
 ) (*Report, error) {
 	var processors []meta.MetadataOperationProcessor
 	for _, processorName := range opts.EnabledProcessors {
-		switch processorName {
-		case "thumbnail":
-			processors = append(processors, &thumbnail.ThumbnailProcessor{
-				MaxSize: 300,
-			})
-		default:
-			return nil, fmt.Errorf("unknown processor: %s", processorName)
+		processor, err := processorForName(processorName)
+		if err != nil {
+			return nil, fmt.Errorf("could not get processor: %s", err)
 		}
+
+		processors = append(processors, processor)
 	}
 
 	txn, err := database.NewTxnWithSchema(db, opts.SchemaName)
@@ -181,6 +181,10 @@ func processorForName(name string) (meta.MetadataOperationProcessor, error) {
 		return &thumbnail.ThumbnailProcessor{
 			MaxSize: 300,
 		}, nil
+	case "color":
+		return &color.ColorAnalysisProcessor{}, nil
+	case "exif":
+		return &exif.ExifMetadataProcessor{}, nil
 	default:
 		return nil, fmt.Errorf("unknown processor: %s", name)
 	}

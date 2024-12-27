@@ -104,7 +104,7 @@ func TestRun(t *testing.T) {
 	rpt, err := runner.Run(ctx, db, minioClient, &runner.Options{
 		BucketName:        "example",
 		SchemaName:        "storage_console",
-		EnabledProcessors: []string{"thumbnail"},
+		EnabledProcessors: []string{"thumbnail", "exif", "color"},
 		LoggerError:       logger,
 		LoggerInfo:        logger,
 	})
@@ -116,7 +116,15 @@ func TestRun(t *testing.T) {
 		t.Fatalf("Expected 3 thumbs to be created, got %d", thumbCounts)
 	}
 
-	path := "meta/thumbnail/45dec35e64e672b610bb06e2da1aa676.jpg"
+	if exifCounts, ok := rpt.Counts["exif"]; !ok || exifCounts != 3 {
+		t.Fatalf("Expected 3 exifs to be created, got %d", exifCounts)
+	}
+
+	if colorCounts, ok := rpt.Counts["color"]; !ok || colorCounts != 3 {
+		t.Fatalf("Expected 3 colors to be created, got %d", colorCounts)
+	}
+
+	path := "meta/thumbnail/288e02f05769a83e474a2e961cb52a7a.jpg"
 	_, err = minioClient.StatObject(
 		ctx,
 		"example",
