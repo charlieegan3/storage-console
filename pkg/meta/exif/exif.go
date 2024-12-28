@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"path"
 
 	"github.com/dsoprea/go-exif/v3"
 	exifcommon "github.com/dsoprea/go-exif/v3/common"
@@ -72,6 +73,7 @@ func (p *ExifMetadataProcessor) Process(
 	}
 
 	putMetadata := meta.PutMetadata{
+		Path:        path.Join(p.Name(), objectInfo.ETag+".json"),
 		ContentType: meta.JSON,
 		Content:     jsonData,
 	}

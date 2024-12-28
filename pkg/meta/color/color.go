@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"image"
 	_ "image/jpeg"
+	"path"
 
 	"github.com/EdlinOrg/prominentcolor"
 	"github.com/charlieegan3/storage-console/pkg/meta"
@@ -44,6 +45,7 @@ func (c *ColorAnalysisProcessor) Process(
 	}
 
 	putMetadata := meta.PutMetadata{
+		Path:        path.Join(c.Name(), objectInfo.ETag+".json"),
 		ContentType: meta.JSON,
 		Content:     jsonData,
 	}
