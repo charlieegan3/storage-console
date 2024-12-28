@@ -77,7 +77,7 @@ func (s *Server) Start(ctx context.Context) error {
 		_, err = runner.Run(ctx, s.db, s.minioClient, &runner.Options{
 			BucketName:        s.cfg.S3.BucketName,
 			SchemaName:        "storage_console",
-			EnabledProcessors: []string{"thumbnail"},
+			EnabledProcessors: []string{"thumbnail", "exif", "color"},
 			LoggerInfo:        s.cfg.Server.LoggerInfo,
 			LoggerError:       s.cfg.Server.LoggerError,
 		})
