@@ -124,15 +124,22 @@ func TestRun(t *testing.T) {
 		t.Fatalf("Expected 3 colors to be created, got %d", colorCounts)
 	}
 
-	path := "meta/thumbnail/288e02f05769a83e474a2e961cb52a7a.jpg"
-	_, err = minioClient.StatObject(
-		ctx,
-		"example",
-		path,
-		minio.StatObjectOptions{},
-	)
-	if err != nil {
-		t.Fatalf("Could not stat object %s: %s", path, err)
+	paths := []string{
+		"meta/exif/288e02f05769a83e474a2e961cb52a7a.json",
+		"meta/thumbnail/288e02f05769a83e474a2e961cb52a7a.jpg",
+		"meta/color/288e02f05769a83e474a2e961cb52a7a.json",
+	}
+
+	for _, path := range paths {
+		_, err = minioClient.StatObject(
+			ctx,
+			"example",
+			path,
+			minio.StatObjectOptions{},
+		)
+		if err != nil {
+			t.Fatalf("Could not stat object %s: %s", path, err)
+		}
 	}
 
 	txn, err := database.NewTxnWithSchema(db, "storage_console")

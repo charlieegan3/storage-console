@@ -152,6 +152,10 @@ DO UPDATE SET %s = true;`
 	}
 
 	for _, putMetadata := range putMetadatas {
+		if putMetadata.Path == "" {
+			return nil, fmt.Errorf("metadata path must be set")
+		}
+
 		_, err := minioClient.PutObject(
 			ctx,
 			opts.BucketName,
