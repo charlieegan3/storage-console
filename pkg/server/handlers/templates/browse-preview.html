@@ -30,7 +30,7 @@
   <div>
     <div class="flex flex-column mw6">
       <h2 class="mb2">Object Details</h2>
-      <div class="ba b--light-gray">
+      <div class="mt2 ba b--light-gray">
         <table class="collapse w-100">
           <tbody>
             <tr class="striped--light-gray">
@@ -49,6 +49,24 @@
               <td class="pa2"><strong>Content Type</strong></td>
               <td class="pa2"><code>{{.ContentType}}</code></td>
             </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 class="mb2">Object Metadata</h2>
+      <div class="mt2 ba b--light-gray">
+        <table class="collapse w-100">
+          <tbody>
+            {{ if eq (len .Metadata) 0 }}
+            <tr class="striped--light-gray">
+              <td class="pa2">None</td>
+            </tr>
+            {{end }} {{ range $k, $v := .Metadata }}
+            <tr class="striped--light-gray">
+              <td class="pa2"><strong>{{ $k }}</strong></td>
+              <td class="pa2">{{ $v }}</td>
+            </tr>
+            {{end}}
           </tbody>
         </table>
       </div>

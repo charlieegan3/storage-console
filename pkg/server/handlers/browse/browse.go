@@ -2,6 +2,7 @@ package browse
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"io"
@@ -301,18 +302,26 @@ func renderPreview(
 		viewPath := strings.TrimPrefix(objectPath, dataPath)
 
 		blobDetailsSQL := `
-select blobs.size, last_modified, md5, content_types.name from objects
+select
+  blobs.size,
+  last_modified,
+  md5,
+  content_types.name,
+  row_to_json(blob_metadata)::jsonb - 'id' - 'blob_id' as metadata_json
+from objects
 left join object_blobs on objects.id = object_blobs.object_id
 left join blobs on blobs.id = object_blobs.blob_id
 left join content_types on blobs.content_type_id = content_types.id
+left join blob_metadata on blobs.id = blob_metadata.blob_id
 where key = $1`
 		var size int64
 		var lastModified time.Time
 		var md5, contentType string
+		var metaJSON []byte
 		err = opts.DB.QueryRow(
 			blobDetailsSQL,
 			viewPath,
-		).Scan(&size, &lastModified, &md5, &contentType)
+		).Scan(&size, &lastModified, &md5, &contentType, &metaJSON)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 
@@ -322,6 +331,16 @@ where key = $1`
 			}
 
 			return
+		}
+
+		var metaData map[string]bool
+		if len(metaJSON) > 0 {
+			err = json.Unmarshal(metaJSON, &metaData)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				opts.LoggerError.Println(fmt.Errorf("failed to unmarshal metadata: %s", err))
+				return
+			}
 		}
 
 		previewableContentTypes := []string{
@@ -345,6 +364,7 @@ where key = $1`
 			LastModified           string
 			MD5                    string
 			Size                   string
+			Metadata               map[string]bool
 		}{
 			Opts:                   opts,
 			Breadcrumbs:            breadcrumbsFromPath(viewPath),
@@ -355,6 +375,7 @@ where key = $1`
 			LastModified:           lastModified.Format(time.RFC3339),
 			MD5:                    md5,
 			Size:                   humanizeBytes(size),
+			Metadata:               metaData,
 		})
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
