@@ -38,10 +38,12 @@ func (s *Server) Start(ctx context.Context) error {
 	if s.cfg.Server.RegisterMux {
 		mux, err = newMux(
 			&handlers.Options{
-				DevMode:    s.cfg.Server.DevMode,
-				DB:         s.db,
-				S3:         s.minioClient,
-				BucketName: s.cfg.S3.BucketName,
+				DevMode:     s.cfg.Server.DevMode,
+				DB:          s.db,
+				S3:          s.minioClient,
+				BucketName:  s.cfg.S3.BucketName,
+				LoggerInfo:  s.cfg.Server.LoggerInfo,
+				LoggerError: s.cfg.Server.LoggerError,
 			},
 		)
 		if err != nil {
