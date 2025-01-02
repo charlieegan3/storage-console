@@ -427,6 +427,10 @@ func renderDir(opts *handlers.Options, mc *minio.Client, tmpl *template.Template
 				Recursive: false,
 			},
 		) {
+			if obj.Key == p {
+				continue
+			}
+
 			key := strings.TrimPrefix(obj.Key, dataPath)
 
 			orderedKeys = append(orderedKeys, key)
