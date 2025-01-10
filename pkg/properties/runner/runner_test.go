@@ -8,9 +8,9 @@ import (
 
 	"github.com/minio/minio-go/v7"
 
-	"github.com/charlieegan3/storage-console/pkg/database"
 	"github.com/charlieegan3/storage-console/pkg/importer"
-	"github.com/charlieegan3/storage-console/pkg/meta/runner"
+	metaRunner "github.com/charlieegan3/storage-console/pkg/meta/runner"
+	"github.com/charlieegan3/storage-console/pkg/properties/runner"
 	"github.com/charlieegan3/storage-console/pkg/test"
 )
 
@@ -102,61 +102,34 @@ func TestRun(t *testing.T) {
 		t.Fatalf("Expected 3 blobs to be created, got %d", importReport.BlobsCreated)
 	}
 
-	rpt, err := runner.Run(ctx, db, minioClient, &runner.Options{
-		BucketName:        "example",
-		SchemaName:        "storage_console",
-		EnabledProcessors: []string{"thumbnail", "exif", "color"},
+	_, err = metaRunner.Run(ctx, db, minioClient, &metaRunner.Options{
+		BucketName: "example",
+		SchemaName: "storage_console",
+		// only need these two for properties
+		EnabledProcessors: []string{"exif", "color"},
 		LoggerError:       logger,
 		LoggerInfo:        logger,
 	})
 	if err != nil {
-		t.Fatalf("Could not run runner: %s", err)
+		t.Fatalf("Could not run meta runner: %s", err)
 	}
 
-	if thumbCounts, ok := rpt.Counts["thumbnail"]; !ok || thumbCounts != 3 {
-		t.Fatalf("Expected 3 thumbs to be created, got %d", thumbCounts)
-	}
-
-	if exifCounts, ok := rpt.Counts["exif"]; !ok || exifCounts != 3 {
-		t.Fatalf("Expected 3 exifs to be created, got %d", exifCounts)
-	}
-
-	if colorCounts, ok := rpt.Counts["color"]; !ok || colorCounts != 3 {
-		t.Fatalf("Expected 3 colors to be created, got %d", colorCounts)
-	}
-
-	paths := []string{
-		"meta/exif/adeea67e40e72105d42aa44edf6b155c.json",
-		"meta/thumbnail/adeea67e40e72105d42aa44edf6b155c.jpg",
-		"meta/color/adeea67e40e72105d42aa44edf6b155c.json",
-	}
-
-	for _, path := range paths {
-		_, err = minioClient.StatObject(
-			ctx,
-			"example",
-			path,
-			minio.StatObjectOptions{},
-		)
-		if err != nil {
-			t.Fatalf("Could not stat object %s: %s", path, err)
-		}
-	}
-
-	txn, err := database.NewTxnWithSchema(db, "storage_console")
+	rpt, err := runner.Run(ctx, db, minioClient, &runner.Options{
+		BucketName:        "example",
+		SchemaName:        "storage_console",
+		EnabledProcessors: []string{"exif", "color"},
+		LoggerError:       logger,
+		LoggerInfo:        logger,
+	})
 	if err != nil {
-		t.Fatalf("Could not start transaction: %s", err)
+		t.Fatalf("Could not run meta runner: %s", err)
 	}
 
-	row := txn.QueryRow(`select count(*) from blob_metadata where thumbnail = TRUE group by thumbnail;`)
-
-	var count int64
-	err = row.Scan(&count)
-	if err != nil {
-		t.Fatalf("Could not scan: %s", err)
+	if exp, got := 36, rpt.Counts["exif"]; exp != got {
+		t.Fatalf("Expected %d exif properties to be created, got %d", exp, got)
 	}
 
-	if count != 3 {
-		t.Fatalf("Expected count to be 3, got %d", count)
+	if exp, got := 18, rpt.Counts["color"]; exp != got {
+		t.Fatalf("Expected %d color properties to be created, got %d", exp, got)
 	}
 }

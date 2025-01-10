@@ -10,7 +10,8 @@ import (
 
 	"github.com/charlieegan3/storage-console/pkg/config"
 	"github.com/charlieegan3/storage-console/pkg/importer"
-	"github.com/charlieegan3/storage-console/pkg/meta/runner"
+	metaRunner "github.com/charlieegan3/storage-console/pkg/meta/runner"
+	propRunner "github.com/charlieegan3/storage-console/pkg/properties/runner"
 	"github.com/charlieegan3/storage-console/pkg/server/handlers"
 )
 
@@ -76,7 +77,8 @@ func (s *Server) Start(ctx context.Context) error {
 			return
 		}
 
-		_, err = runner.Run(ctx, s.db, s.minioClient, &runner.Options{
+		// do initial metadata processing
+		_, err = metaRunner.Run(ctx, s.db, s.minioClient, &metaRunner.Options{
 			BucketName:        s.cfg.S3.BucketName,
 			SchemaName:        "storage_console",
 			EnabledProcessors: []string{"thumbnail", "exif", "color"},
@@ -84,7 +86,20 @@ func (s *Server) Start(ctx context.Context) error {
 			LoggerError:       s.cfg.Server.LoggerError,
 		})
 		if err != nil {
-			s.cfg.Server.LoggerError.Printf("error running runner: %v", err)
+			s.cfg.Server.LoggerError.Printf("error running metadata runner: %v", err)
+			return
+		}
+
+		// upgrade metadata into rich properties
+		_, err = propRunner.Run(ctx, s.db, s.minioClient, &propRunner.Options{
+			BucketName:        s.cfg.S3.BucketName,
+			SchemaName:        "storage_console",
+			EnabledProcessors: []string{"exif", "color"},
+			LoggerInfo:        s.cfg.Server.LoggerInfo,
+			LoggerError:       s.cfg.Server.LoggerError,
+		})
+		if err != nil {
+			s.cfg.Server.LoggerError.Printf("error running properties runner: %v", err)
 			return
 		}
 

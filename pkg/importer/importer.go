@@ -128,6 +128,10 @@ select key from objects;
 			continue
 		}
 
+		if path.Base(key) == ".DS_Store" {
+			continue
+		}
+
 		if _, ok := pathsToRemove[key]; ok {
 			pathsToRemove[key] = false
 		}

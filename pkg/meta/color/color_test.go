@@ -14,6 +14,7 @@ import (
 )
 
 func TestColorAnalysisProcessor(t *testing.T) {
+	t.Parallel()
 	imagePath := "../fixtures/rx100-landscape.jpg"
 
 	content, err := os.ReadFile(imagePath)
