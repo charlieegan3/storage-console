@@ -104,10 +104,11 @@ func Run(
 				return nil, fmt.Errorf("%s processor not found", processorName)
 			}
 
+			path := path.Join("meta", processorName, bp.MD5+".json")
 			obj, err := minioClient.GetObject(
 				ctx,
 				opts.BucketName,
-				path.Join("meta", processorName, bp.MD5+".json"),
+				path,
 				minio.GetObjectOptions{},
 			)
 			if err != nil {
@@ -116,7 +117,7 @@ func Run(
 
 			bs, err := io.ReadAll(obj)
 			if err != nil {
-				return nil, fmt.Errorf("could not read object: %s", err)
+				return nil, fmt.Errorf("could not read object %s: %s", path, err)
 			}
 
 			newProps, err := ep.Process(ctx, bs)
