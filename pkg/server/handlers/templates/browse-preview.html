@@ -53,6 +53,33 @@
         </table>
       </div>
 
+      <h2 class="mb2">Object Properties</h2>
+      <div class="mt2 ba b--light-gray">
+        <table class="collapse w-100">
+          <tbody>
+            {{ if eq (len .Properties) 0 }}
+            <tr class="striped--light-gray">
+              <td class="pa2">None</td>
+            </tr>
+            {{end }} {{ range $i, $v := .Properties }}
+            <tr class="striped--light-gray">
+              <td class="pa2"><strong>{{ $v.PropertyType }}</strong></td>
+              {{ if ne $v.Color "" }}
+              <td class="pa2">
+                <span
+                  class="w2 h2 dib"
+                  style="background-color: rgb({{ $v.Color }})"
+                ></span>
+              </td>
+              {{ else }}
+              <td class="pa2">{{ $v.String }}</td>
+              {{ end }}
+            </tr>
+            {{end}}
+          </tbody>
+        </table>
+      </div>
+
       <h2 class="mb2">Object Metadata</h2>
       <div class="mt2 ba b--light-gray">
         <table class="collapse w-100">

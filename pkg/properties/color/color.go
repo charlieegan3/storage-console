@@ -57,33 +57,12 @@ func (e *ColorProcessor) Process(
 	return props, nil
 }
 
-type color struct {
-	R int `json:"R"`
-	G int `json:"G"`
-	B int `json:"B"`
-}
-
 type colorData struct {
-	Color color `json:"Color"`
-	Cnt   int   `json:"Cnt"`
+	Color properties.Color `json:"Color"`
+	Cnt   int              `json:"Cnt"`
 }
 
-var predefinedColors = map[string]color{
-	"r":  {255, 0, 0},
-	"g":  {0, 255, 0},
-	"b":  {0, 0, 255},
-	"c":  {0, 255, 255},
-	"m":  {255, 0, 255},
-	"y":  {255, 255, 0},
-	"ro": {255, 127, 0},
-	"yo": {255, 191, 0},
-	"yg": {127, 255, 0},
-	"bg": {0, 255, 127},
-	"bv": {0, 127, 255},
-	"rv": {127, 0, 255},
-}
-
-func distance(c1, c2 color) float64 {
+func distance(c1, c2 properties.Color) float64 {
 	return math.Sqrt(
 		math.Pow(float64(c1.R-c2.R), 2) +
 			math.Pow(float64(c1.G-c2.G), 2) +
@@ -91,11 +70,11 @@ func distance(c1, c2 color) float64 {
 	)
 }
 
-func findNearestColor(c color) string {
+func findNearestColor(c properties.Color) string {
 	minDist := math.MaxFloat64
 	nearestColor := ""
 
-	for name, predefined := range predefinedColors {
+	for name, predefined := range properties.PredefinedColors {
 		dist := distance(c, predefined)
 		if dist < minDist {
 			minDist = dist

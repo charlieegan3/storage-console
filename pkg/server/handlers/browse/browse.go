@@ -16,6 +16,7 @@ import (
 	"github.com/davidbyttow/govips/v2/vips"
 	"github.com/minio/minio-go/v7"
 
+	"github.com/charlieegan3/storage-console/pkg/properties"
 	"github.com/charlieegan3/storage-console/pkg/server/handlers"
 	"github.com/charlieegan3/storage-console/pkg/utils"
 )
@@ -303,6 +304,7 @@ func renderPreview(
 
 		blobDetailsSQL := `
 select
+  blobs.id,
   blobs.size,
   last_modified,
   md5,
@@ -314,14 +316,15 @@ left join blobs on blobs.id = object_blobs.blob_id
 left join content_types on blobs.content_type_id = content_types.id
 left join blob_metadata on blobs.id = blob_metadata.blob_id
 where key = $1`
-		var size int64
+		var size, id int64
 		var lastModified time.Time
 		var md5, contentType string
 		var metaJSON []byte
-		err = opts.DB.QueryRow(
+		err = opts.DB.QueryRowContext(
+			r.Context(),
 			blobDetailsSQL,
 			viewPath,
-		).Scan(&size, &lastModified, &md5, &contentType, &metaJSON)
+		).Scan(&id, &size, &lastModified, &md5, &contentType, &metaJSON)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 
@@ -341,6 +344,36 @@ where key = $1`
 				opts.LoggerError.Println(fmt.Errorf("failed to unmarshal metadata: %s", err))
 				return
 			}
+		}
+
+		blobPropertiesSQL := `
+select blob_id, source, property_type, value_type, value_bool, value_numerator, value_denominator, value_text, value_integer, value_float, value_timestamp, value_timestamptz from blob_properties
+where
+  blob_id = $1
+  and property_type != 'Done'
+order by source, property_type;
+`
+		var props []properties.BlobProperties
+		rows, err := opts.DB.QueryContext(
+			r.Context(),
+			blobPropertiesSQL,
+			id,
+		)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			opts.LoggerError.Println(fmt.Errorf("failed to query properties: %s", err))
+		}
+
+		for rows.Next() {
+			var prop properties.BlobProperties
+
+			err = rows.Scan(&prop.BlobID, &prop.PropertySource, &prop.PropertyType, &prop.ValueType, &prop.ValueBool, &prop.ValueNumerator, &prop.ValueDenominator, &prop.ValueText, &prop.ValueInteger, &prop.ValueFloat, &prop.ValueTimestamp, &prop.ValueTimestamptz)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				opts.LoggerError.Println(fmt.Errorf("failed to scan properties: %s", err))
+			}
+
+			props = append(props, prop)
 		}
 
 		previewableContentTypes := []string{
@@ -365,6 +398,7 @@ where key = $1`
 			MD5                    string
 			Size                   string
 			Metadata               map[string]bool
+			Properties             []properties.BlobProperties
 		}{
 			Opts:                   opts,
 			Breadcrumbs:            breadcrumbsFromPath(viewPath),
@@ -376,6 +410,7 @@ where key = $1`
 			MD5:                    md5,
 			Size:                   humanizeBytes(size),
 			Metadata:               metaData,
+			Properties:             props,
 		})
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
