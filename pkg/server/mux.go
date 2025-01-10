@@ -2,10 +2,11 @@ package server
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 
 	"github.com/charlieegan3/storage-console/pkg/importer"
+	metaRunner "github.com/charlieegan3/storage-console/pkg/meta/runner"
+	propRunner "github.com/charlieegan3/storage-console/pkg/properties/runner"
 	"github.com/charlieegan3/storage-console/pkg/server/handlers"
 	"github.com/charlieegan3/storage-console/pkg/server/handlers/browse"
 	"github.com/charlieegan3/storage-console/pkg/server/middlewares"
@@ -43,11 +44,40 @@ func newMux(opts *handlers.Options) (*http.ServeMux, error) {
 			fmt.Println("reloading")
 
 			_, err := importer.Run(r.Context(), opts.DB, opts.S3, &importer.Options{
-				BucketName: opts.BucketName,
-				SchemaName: "storage_console",
+				BucketName:  opts.BucketName,
+				SchemaName:  "storage_console",
+				LoggerInfo:  opts.LoggerInfo,
+				LoggerError: opts.LoggerError,
 			})
 			if err != nil {
-				log.Printf("error running importer: %v", err)
+				opts.LoggerError.Printf("error running importer: %v", err)
+				return
+			}
+
+			// do initial metadata processing
+			_, err = metaRunner.Run(r.Context(), opts.DB, opts.S3, &metaRunner.Options{
+				BucketName:        opts.BucketName,
+				SchemaName:        "storage_console",
+				EnabledProcessors: []string{"thumbnail", "exif", "color"},
+				LoggerInfo:        opts.LoggerInfo,
+				LoggerError:       opts.LoggerError,
+			})
+			if err != nil {
+				opts.LoggerError.Printf("error running metadata runner: %v", err)
+				return
+			}
+
+			// upgrade metadata into rich properties
+			_, err = propRunner.Run(r.Context(), opts.DB, opts.S3, &propRunner.Options{
+				BucketName:        opts.BucketName,
+				SchemaName:        "storage_console",
+				EnabledProcessors: []string{"exif", "color"},
+				LoggerInfo:        opts.LoggerInfo,
+				LoggerError:       opts.LoggerError,
+			})
+			if err != nil {
+				opts.LoggerError.Printf("error running properties runner: %v", err)
+
 				return
 			}
 
