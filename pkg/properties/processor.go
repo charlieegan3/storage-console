@@ -81,6 +81,8 @@ func (bp *BlobProperties) String() string {
 		return *bp.ValueText
 	case bp.ValueType == "Integer" && bp.ValueInteger != nil:
 		return fmt.Sprintf("%d", *bp.ValueInteger)
+	case bp.ValueType == "Float" && bp.ValueFloat != nil:
+		return fmt.Sprintf("%g", *bp.ValueFloat)
 	case bp.ValueType == "Timestamp" && bp.ValueTimestamp != nil:
 		return fmt.Sprintf("%v", *bp.ValueTimestamp)
 	case bp.ValueType == "TimestampWithTimeZone" && bp.ValueTimestamptz != nil:

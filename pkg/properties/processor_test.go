@@ -79,6 +79,13 @@ func TestBlobPropertiesString(t *testing.T) {
 			},
 			String: "10",
 		},
+		"float": {
+			BlobProperties: BlobProperties{
+				ValueType:  "Float",
+				ValueFloat: &[]float64{1.23}[0],
+			},
+			String: "1.23",
+		},
 		"timestamp": {
 			BlobProperties: BlobProperties{
 				ValueType:      "Timestamp",
