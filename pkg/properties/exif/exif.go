@@ -31,12 +31,12 @@ func (e *ExifProcessor) Process(
 
 	// Extract ApertureValue
 	if len(em.ApertureValue) > 0 {
+		value := float64(em.ApertureValue[0].Numerator) / float64(em.ApertureValue[0].Denominator)
 		props = append(props, properties.BlobProperties{
-			PropertySource:   source,
-			PropertyType:     "ApertureValue",
-			ValueType:        "Fraction",
-			ValueNumerator:   &em.ApertureValue[0].Numerator,
-			ValueDenominator: &em.ApertureValue[0].Denominator,
+			PropertySource: source,
+			PropertyType:   "ApertureValue",
+			ValueType:      "Float",
+			ValueFloat:     []*float64{&value}[0],
 		})
 	}
 
@@ -53,12 +53,12 @@ func (e *ExifProcessor) Process(
 
 	// Extract GPSAltitude
 	if len(em.GPSAltitude) > 0 {
+		value := float64(em.GPSAltitude[0].Numerator) / float64(em.GPSAltitude[0].Denominator)
 		props = append(props, properties.BlobProperties{
-			PropertySource:   source,
-			PropertyType:     "GPSAltitude",
-			ValueType:        "Fraction",
-			ValueNumerator:   &em.GPSAltitude[0].Numerator,
-			ValueDenominator: &em.GPSAltitude[0].Denominator,
+			PropertySource: source,
+			PropertyType:   "GPSAltitude",
+			ValueType:      "Integer",
+			ValueInteger:   &[]int{int(value)}[0],
 		})
 	}
 
