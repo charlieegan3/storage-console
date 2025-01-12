@@ -7,95 +7,78 @@
     end }} {{ end }} {{ end }}
   </div>
 
-  <p>
-    <a target="_blank" href="/b/{{.Dir}}?asset={{.File}}&download=true"
-    >Download</a>
-  </p>
-
-  <div class="flex justify-center items-center">
-    {{ if .ContentTypePreviewable }}
-    <div class="w-100 mw7">
-      <img src="/b/{{.Dir}}?asset={{.File}}" class="object-contain" />
-    </div>
-    {{ else }}
-    <div class="w4">
-      <img
-        src="/icons/content-types/{{.ContentType}}.svg"
-        class="object-contain"
-      />
-    </div>
-    {{ end }}
-  </div>
-
-  <div>
-    <div class="flex flex-column mw6">
-      <h2 class="mb2">Object Details</h2>
-      <div class="mt2 ba b--light-gray">
-        <table class="collapse w-100">
-          <tbody>
-            <tr class="striped--light-gray">
-              <td class="pa2"><strong>Size</strong></td>
-              <td class="pa2">{{.Size}}</td>
-            </tr>
-            <tr class="striped--light-gray">
-              <td class="pa2"><strong>Last Modified</strong></td>
-              <td class="pa2">{{.LastModified}}</td>
-            </tr>
-            <tr class="striped--light-gray">
-              <td class="pa2"><strong>MD5</strong></td>
-              <td class="pa2"><code>{{.MD5}}</code></td>
-            </tr>
-            <tr class="striped--light-gray">
-              <td class="pa2"><strong>Content Type</strong></td>
-              <td class="pa2"><code>{{.ContentType}}</code></td>
-            </tr>
-          </tbody>
-        </table>
+  <div class="center">
+    <div class="cf">
+      <div class="fl w-100 w-two-thirds-l pa1-ns">
+        <div class="flex justify-center items-center">
+          {{ if .ContentTypePreviewable }}
+          <div class="w-100 tc">
+            <img class="vh-90 v-mid" src="/b{{.Dir}}?asset={{.File}}" />
+          </div>
+          {{ else }}
+          <div class="w4">
+            <img
+              src="/icons/content-types/{{.ContentType}}.svg"
+              class="object-contain"
+            />
+          </div>
+          {{ end }}
+        </div>
       </div>
 
-      <h2 class="mb2">Object Properties</h2>
-      <div class="mt2 ba b--light-gray">
-        <table class="collapse w-100">
-          <tbody>
-            {{ if eq (len .Properties) 0 }}
-            <tr class="striped--light-gray">
-              <td class="pa2">None</td>
-            </tr>
-            {{end }} {{ range $i, $v := .Properties }}
-            <tr class="striped--light-gray">
-              <td class="pa2"><strong>{{ $v.PropertyType }}</strong></td>
-              {{ if ne $v.Color "" }}
-              <td class="pa2">
-                <span
-                  class="w2 h2 dib"
-                  style="background-color: rgb({{ $v.Color }})"
-                ></span>
-              </td>
-              {{ else }}
-              <td class="pa2">{{ $v.String }}</td>
-              {{ end }}
-            </tr>
-            {{end}}
-          </tbody>
-        </table>
-      </div>
+      <div class="fl w-100 w-third-l pa1 f6 f5-l">
+        <p class="mt0 tr-l pr2-l">
+          <a target="_blank" href="/b/{{.Dir}}?asset={{.File}}&download=true"
+          >Download</a>
+        </p>
 
-      <h2 class="mb2">Object Metadata</h2>
-      <div class="mt2 ba b--light-gray">
-        <table class="collapse w-100">
-          <tbody>
-            {{ if eq (len .Metadata) 0 }}
-            <tr class="striped--light-gray">
-              <td class="pa2">None</td>
-            </tr>
-            {{end }} {{ range $k, $v := .Metadata }}
-            <tr class="striped--light-gray">
-              <td class="pa2"><strong>{{ $k }}</strong></td>
-              <td class="pa2">{{ $v }}</td>
-            </tr>
-            {{end}}
-          </tbody>
-        </table>
+        <div class="mt2 ba b--light-gray">
+          <table class="collapse w-100">
+            <tbody>
+              <tr class="striped--light-gray">
+                <td class="pa2"><strong>Size</strong></td>
+                <td class="pa2">{{.Size}}</td>
+              </tr>
+              <tr class="striped--light-gray">
+                <td class="pa2"><strong>Last Modified</strong></td>
+                <td class="pa2">{{.LastModified}}</td>
+              </tr>
+              <tr class="striped--light-gray">
+                <td class="pa2"><strong>MD5</strong></td>
+                <td class="pa2 f7"><code>{{.MD5}}</code></td>
+              </tr>
+              <tr class="striped--light-gray">
+                <td class="pa2"><strong>Content Type</strong></td>
+                <td class="pa2"><code>{{.ContentType}}</code></td>
+              </tr>
+
+              <!-- custom properties -->
+              {{ range $i, $v := .Properties }}
+              <tr class="striped--light-gray">
+                <td class="pa2"><strong>{{ $v.PropertyType }}</strong></td>
+                {{ if ne $v.Color "" }}
+                <td class="pa2">
+                  <span
+                    class="w2 h2 dib"
+                    style="background-color: rgb({{ $v.Color }})"
+                  ></span>
+                </td>
+                {{ else }}
+                <td class="pa2">{{ $v.String }}</td>
+                {{ end }}
+              </tr>
+              {{end}}
+
+              <!-- metadata runs -->
+              {{ range $k, $v := .Metadata }}
+              <tr class="striped--light-gray">
+                <td class="pa2"><strong>{{ $k }}</strong></td>
+                <td class="pa2">{{ $v }}</td>
+              </tr>
+              {{end}}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>

@@ -21,3 +21,7 @@ body {
 min-height-0 {
 	min-height: 0;
 }
+
+.vh-90 {
+	max-height: 90vh;
+}
