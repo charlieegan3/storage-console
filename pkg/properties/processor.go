@@ -88,6 +88,14 @@ func (bp *BlobProperties) String() string {
 	case bp.ValueType == "TimestampWithTimeZone" && bp.ValueTimestamptz != nil:
 		return fmt.Sprintf("%v", *bp.ValueTimestamptz)
 	case bp.ValueType == "Fraction" && bp.ValueNumerator != nil && bp.ValueDenominator != nil:
+		if *bp.ValueDenominator == 1 {
+			return fmt.Sprintf("%d", *bp.ValueNumerator)
+		}
+
+		if *bp.ValueNumerator == 0 {
+			return "0"
+		}
+
 		return fmt.Sprintf("%d/%d", *bp.ValueNumerator, *bp.ValueDenominator)
 	}
 

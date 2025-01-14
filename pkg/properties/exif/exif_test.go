@@ -21,7 +21,7 @@ func TestExifProcessor(t *testing.T) {
 		t.Fatalf("Could not process exif: %s", err)
 	}
 
-	if got, exp := len(props), 13; got != exp {
+	if got, exp := len(props), 14; got != exp {
 		t.Fatalf("Expected %d properties, got %d", exp, got)
 	}
 

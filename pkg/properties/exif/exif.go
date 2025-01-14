@@ -40,6 +40,15 @@ func (e *ExifProcessor) Process(
 		})
 	}
 
+	if len(em.FocalLengthIn35MmFilm) > 0 {
+		props = append(props, properties.BlobProperties{
+			PropertySource: source,
+			PropertyType:   "FocalLengthIn35MmFilm",
+			ValueType:      "Integer",
+			ValueInteger:   &em.FocalLengthIn35MmFilm[0],
+		})
+	}
+
 	// Extract ExposureBiasValue
 	if len(em.ExposureBiasValue) > 0 {
 		props = append(props, properties.BlobProperties{

@@ -72,6 +72,22 @@ func TestBlobPropertiesString(t *testing.T) {
 			},
 			String: "10/100",
 		},
+		"fraction / 1": {
+			BlobProperties: BlobProperties{
+				ValueType:        "Fraction",
+				ValueNumerator:   &[]int{10}[0],
+				ValueDenominator: &[]int{1}[0],
+			},
+			String: "10",
+		},
+		"0 / fraction": {
+			BlobProperties: BlobProperties{
+				ValueType:        "Fraction",
+				ValueNumerator:   &[]int{0}[0],
+				ValueDenominator: &[]int{10}[0],
+			},
+			String: "0",
+		},
 		"int": {
 			BlobProperties: BlobProperties{
 				ValueType:    "Integer",
