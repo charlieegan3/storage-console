@@ -40,12 +40,12 @@ func (e *ExifProcessor) Process(
 		})
 	}
 
-	if len(em.FocalLengthIn35MmFilm) > 0 {
+	if len(em.FocalLengthIn35mmFilm) > 0 {
 		props = append(props, properties.BlobProperties{
 			PropertySource: source,
-			PropertyType:   "FocalLengthIn35MmFilm",
+			PropertyType:   "FocalLengthIn35mmFilm",
 			ValueType:      "Integer",
-			ValueInteger:   &em.FocalLengthIn35MmFilm[0],
+			ValueInteger:   &em.FocalLengthIn35mmFilm[0],
 		})
 	}
 
@@ -61,13 +61,14 @@ func (e *ExifProcessor) Process(
 	}
 
 	// Extract GPSAltitude
+	// this is a float as the values are sometimes large
 	if len(em.GPSAltitude) > 0 {
 		value := float64(em.GPSAltitude[0].Numerator) / float64(em.GPSAltitude[0].Denominator)
 		props = append(props, properties.BlobProperties{
 			PropertySource: source,
 			PropertyType:   "GPSAltitude",
-			ValueType:      "Integer",
-			ValueInteger:   &[]int{int(value)}[0],
+			ValueType:      "Float",
+			ValueFloat:     &[]float64{float64(value)}[0],
 		})
 	}
 
@@ -239,7 +240,7 @@ type exifMetadata struct {
 		Numerator   int `json:"Numerator"`
 		Denominator int `json:"Denominator"`
 	} `json:"FocalLength"`
-	FocalLengthIn35MmFilm    []int `json:"FocalLengthIn35mmFilm"`
+	FocalLengthIn35mmFilm    []int `json:"FocalLengthIn35mmFilm"`
 	FocalPlaneResolutionUnit []int `json:"FocalPlaneResolutionUnit"`
 	FocalPlaneXResolution    []struct {
 		Numerator   int `json:"Numerator"`

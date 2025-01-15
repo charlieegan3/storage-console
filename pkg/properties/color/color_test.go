@@ -2,7 +2,6 @@ package color
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"testing"
 )
@@ -24,8 +23,6 @@ func TestColorProcessor(t *testing.T) {
 	if exp, got := 6, len(props); exp != got {
 		t.Fatalf("Expected %d properties, got %d", exp, got)
 	}
-
-	fmt.Println(props)
 
 	p0 := props[0]
 

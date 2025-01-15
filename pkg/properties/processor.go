@@ -20,6 +20,11 @@ var PredefinedColors = map[string]Color{
 	"bg": {0, 255, 127},
 	"bv": {0, 127, 255},
 	"rv": {127, 0, 255},
+
+	"blk": {0, 0, 0},       // Black
+	"wht": {255, 255, 255}, // White
+	"lg":  {192, 192, 192}, // Light Grey
+	"dg":  {64, 64, 64},    // Dark Grey
 }
 
 type Color struct {

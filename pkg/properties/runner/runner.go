@@ -30,6 +30,8 @@ type Options struct {
 	SchemaName string
 	BucketName string
 
+	Prefix string
+
 	EnabledProcessors []string
 
 	LoggerError *log.Logger
@@ -38,6 +40,7 @@ type Options struct {
 
 type blobProperties struct {
 	ID       int
+	Key      string
 	MD5      string
 	SetExif  bool
 	SetColor bool
@@ -76,12 +79,16 @@ func Run(
 	var bps []blobProperties
 	for rows.Next() {
 		var bp blobProperties
-		err = rows.Scan(&bp.ID, &bp.MD5, &bp.SetExif, &bp.SetColor)
+		err = rows.Scan(&bp.ID, &bp.Key, &bp.MD5, &bp.SetExif, &bp.SetColor)
 		if errors.Is(err, sql.ErrNoRows) {
 			break
 		}
 		if err != nil {
 			return nil, fmt.Errorf("could not scan path: %s", err)
+		}
+
+		if !strings.HasPrefix(bp.Key, opts.Prefix) {
+			continue
 		}
 
 		bps = append(bps, bp)
@@ -97,6 +104,12 @@ func Run(
 		if !bp.SetColor {
 			processorsNeeded = append(processorsNeeded, "color")
 		}
+
+		if len(processorsNeeded) == 0 {
+			continue
+		}
+
+		opts.LoggerInfo.Printf("processing properties for blob: %s (%s)", bp.Key, processorsNeeded)
 
 		for _, processorName := range processorsNeeded {
 			ep, ok := processors[processorName]
@@ -195,6 +208,7 @@ func insertBlobProperties(tx *sql.Tx, blobID int, properties []properties.BlobPr
 			start+1, start+2, start+3, start+4, start+5, start+6, start+7,
 			start+8, start+9, start+10, start+11, start+12,
 		))
+
 		values = append(values,
 			blobID,
 			prop.PropertySource,

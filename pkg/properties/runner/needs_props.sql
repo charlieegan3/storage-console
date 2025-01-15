@@ -1,5 +1,6 @@
 SELECT
     bm.blob_id,
+    objects.key,
     blobs.md5,
     EXISTS (
         SELECT 1
@@ -19,6 +20,10 @@ FROM
     blob_metadata bm
 JOIN
     blobs on bm.blob_id = blobs.id
+JOIN
+    object_blobs on blobs.id = object_blobs.blob_id
+JOIN
+    objects on object_blobs.object_id = objects.id
 WHERE
     bm.exif = TRUE OR bm.color = TRUE
 ORDER BY

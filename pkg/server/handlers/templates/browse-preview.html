@@ -13,7 +13,7 @@
         <div class="flex justify-center items-center">
           {{ if .ContentTypePreviewable }}
           <div class="w-100 tc">
-            <img class="vh-90 v-mid" src="/b{{.Dir}}?asset={{.File}}" />
+            <img class="vh-90 v-mid" src="/b/{{.Dir}}?asset={{.File}}" />
           </div>
           {{ else }}
           <div class="w4">
@@ -30,6 +30,10 @@
         <p class="mt0 tr-l pr2-l">
           <a target="_blank" href="/b/{{.Dir}}?asset={{.File}}&download=true"
           >Download</a>
+          <form class="dib" action="/reload" method="post">
+            <input type="hidden" name="prefix" value="{{.Dir}}/{{.File}}" />
+            <button class="link pointer" type="submit">Reload</button>
+          </form>
         </p>
 
         <div class="mt2 ba b--light-gray">

@@ -125,7 +125,7 @@ func TestRun(t *testing.T) {
 		t.Fatalf("Could not run meta runner: %s", err)
 	}
 
-	if exp, got := 36, rpt.Counts["exif"]; exp != got {
+	if exp, got := 39, rpt.Counts["exif"]; exp != got {
 		t.Fatalf("Expected %d exif properties to be created, got %d", exp, got)
 	}
 

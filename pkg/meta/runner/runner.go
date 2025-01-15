@@ -36,6 +36,8 @@ type Options struct {
 	SchemaName string
 	BucketName string
 
+	Prefix string
+
 	EnabledProcessors []string
 
 	LoggerError *log.Logger
@@ -96,6 +98,10 @@ func Run(
 				return nil, fmt.Errorf("could not scan path: %s", err)
 			}
 
+			if !strings.HasPrefix(blob.Key, opts.Prefix) {
+				continue
+			}
+
 			blobProcessors[blob.MD5] = append(blobProcessors[blob.MD5], processor.Name())
 			blobs[blob.MD5] = blob
 		}
@@ -122,6 +128,8 @@ func Run(
 		if err != nil {
 			return nil, fmt.Errorf("could not read object: %s", err)
 		}
+
+		opts.LoggerInfo.Printf("processing metadata for blob %s", blob.Key)
 
 		for _, processorName := range blobProcessors[blob.MD5] {
 			processor, err := processorForName(processorName)

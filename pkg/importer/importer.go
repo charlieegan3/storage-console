@@ -20,6 +20,8 @@ type Options struct {
 	BucketName string
 	SchemaName string
 
+	Prefix string
+
 	LoggerError *log.Logger
 	LoggerInfo  *log.Logger
 }
@@ -108,6 +110,11 @@ select key from objects;
 		if err != nil {
 			return nil, fmt.Errorf("could not scan path: %s", err)
 		}
+
+		if !strings.HasPrefix(path, opts.Prefix) {
+			continue
+		}
+
 		pathsToRemove[path] = true
 	}
 
@@ -119,12 +126,11 @@ select key from objects;
 	for obj := range minioClient.ListObjects(
 		ctx,
 		opts.BucketName,
-		minio.ListObjectsOptions{Prefix: dataPath, Recursive: true},
+		minio.ListObjectsOptions{Prefix: path.Join(dataPath, opts.Prefix), Recursive: true},
 	) {
 		key := strings.TrimPrefix(obj.Key, dataPath)
 
 		if strings.HasSuffix(key, "/") {
-			fmt.Println("skipping directory", key)
 			continue
 		}
 
@@ -153,6 +159,8 @@ ON CONFLICT (key) DO NOTHING;
 			if err != nil {
 				return nil, fmt.Errorf("could not update task: %s", err)
 			}
+
+			opts.LoggerInfo.Printf("imported %s", key)
 
 			r.ObjectsCreated++
 		}
