@@ -28,12 +28,11 @@
 
       <div class="fl w-100 w-third-l pa1 f6 f5-l">
         <p class="mt0 tr-l pr2-l">
-          <a target="_blank" href="/b/{{.Dir}}?asset={{.File}}&download=true"
-          >Download</a>
-          <form class="dib" action="/reload" method="post">
-            <input type="hidden" name="prefix" value="{{.Dir}}/{{.File}}" />
-            <button class="link pointer" type="submit">Reload</button>
-          </form>
+          <a target="_blank" href="/b/{{.Dir}}?asset={{.File}}&download=true">
+            Download</a>
+          &nbsp;
+          <a href="/reload?prefix={{.Dir}}/{{.File}}">
+            Reload</a>
         </p>
 
         <div class="mt2 ba b--light-gray">

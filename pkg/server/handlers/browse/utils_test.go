@@ -1,7 +1,6 @@
 package browse
 
 import (
-	"fmt"
 	"testing"
 )
 
@@ -145,8 +144,6 @@ func TestBreadcrumbsFromPath(t *testing.T) {
 			if len(actual.Items) != len(testData.expected.Items) {
 				t.Fatalf("expected %v, got %v", len(testData.expected.Items), len(actual.Items))
 			}
-
-			fmt.Printf("actual: %#v\n", actual.Items)
 
 			for i, item := range actual.Items {
 				if item.Name != testData.expected.Items[i].Name {

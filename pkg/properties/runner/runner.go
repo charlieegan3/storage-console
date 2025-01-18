@@ -39,11 +39,11 @@ type Options struct {
 }
 
 type blobProperties struct {
-	ID       int
-	Key      string
-	MD5      string
-	SetExif  bool
-	SetColor bool
+	ID           int
+	Key          string
+	MD5          string
+	ExifMissing  bool
+	ColorMissing bool
 }
 
 func Run(
@@ -79,7 +79,7 @@ func Run(
 	var bps []blobProperties
 	for rows.Next() {
 		var bp blobProperties
-		err = rows.Scan(&bp.ID, &bp.Key, &bp.MD5, &bp.SetExif, &bp.SetColor)
+		err = rows.Scan(&bp.ID, &bp.Key, &bp.MD5, &bp.ExifMissing, &bp.ColorMissing)
 		if errors.Is(err, sql.ErrNoRows) {
 			break
 		}
@@ -98,10 +98,10 @@ func Run(
 		var props []properties.BlobProperties
 
 		processorsNeeded := []string{}
-		if !bp.SetExif {
+		if bp.ExifMissing {
 			processorsNeeded = append(processorsNeeded, "exif")
 		}
-		if !bp.SetColor {
+		if bp.ColorMissing {
 			processorsNeeded = append(processorsNeeded, "color")
 		}
 

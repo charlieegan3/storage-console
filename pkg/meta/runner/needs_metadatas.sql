@@ -1,9 +1,9 @@
-WITH has_metadatas AS (
+SET SCHEMA 'storage_console';
+WITH needs_metadatas AS (
     SELECT
         blobs.id,
         blobs.md5,
-        objects.key,
-        COALESCE(blob_metadata.%s, false) AS has_metadata
+        objects.key
     FROM objects
     JOIN object_blobs
         ON object_blobs.object_id = objects.id
@@ -13,6 +13,7 @@ WITH has_metadatas AS (
         ON blob_metadata.blob_id = blobs.id
     WHERE
       objects.deleted_at IS NULL AND
+      (blob_metadata.%s = 'unknown' OR blob_metadata.%s is null) AND
       blobs.content_type_id IN (
         SELECT id
         FROM content_types
@@ -23,5 +24,5 @@ SELECT
     id,
     md5,
     key
-FROM has_metadatas
-WHERE NOT has_metadata;
+FROM needs_metadatas
+

@@ -20,8 +20,8 @@ import (
 	"github.com/minio/minio-go/v7"
 )
 
-//go:embed has_metadatas.sql
-var hasMetadatasSQL string
+//go:embed needs_metadatas.sql
+var needsMetadatasSQL string
 
 const (
 	metaPath = "meta/"
@@ -82,7 +82,7 @@ func Run(
 
 		rows, err := txn.QueryContext(
 			ctx,
-			fmt.Sprintf(hasMetadatasSQL, processor.Name(), contentTypes),
+			fmt.Sprintf(needsMetadatasSQL, processor.Name(), processor.Name(), contentTypes),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("could not select missing blobs: %s", err)
@@ -142,13 +142,20 @@ func Run(
 				return nil, fmt.Errorf("could not process blob: %s", err)
 			}
 
+			result := "unknown"
+			if len(pms) > 0 {
+				result = "success"
+			} else {
+				result = "failure"
+			}
+
 			setMetaSQL := `
 INSERT INTO blob_metadata (blob_id, %s)
-VALUES ($1, true)
+VALUES ($1, $2)
 ON CONFLICT (blob_id)
-DO UPDATE SET %s = true;`
+DO UPDATE SET %s = $2;`
 
-			_, err = txn.Exec(fmt.Sprintf(setMetaSQL, processor.Name(), processor.Name()), blob.ID)
+			_, err = txn.Exec(fmt.Sprintf(setMetaSQL, processor.Name(), processor.Name()), blob.ID, result)
 			if err != nil {
 				return nil, fmt.Errorf("could not set metadata: %s", err)
 			}

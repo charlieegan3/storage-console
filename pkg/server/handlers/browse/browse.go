@@ -2,7 +2,9 @@ package browse
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"io"
@@ -16,6 +18,7 @@ import (
 	"github.com/davidbyttow/govips/v2/vips"
 	"github.com/minio/minio-go/v7"
 
+	"github.com/charlieegan3/storage-console/pkg/database"
 	"github.com/charlieegan3/storage-console/pkg/properties"
 	"github.com/charlieegan3/storage-console/pkg/server/handlers"
 	"github.com/charlieegan3/storage-console/pkg/utils"
@@ -109,6 +112,7 @@ func BuildHandler(opts *handlers.Options) (func(http.ResponseWriter, *http.Reque
 			objectPath := path.Join("data", strings.TrimPrefix(r.URL.Path+preview, "/b/"))
 
 			renderPreview(opts, mc, tmplFile, objectPath)(w, r)
+
 			return
 		}
 
@@ -302,6 +306,32 @@ func renderPreview(
 
 		viewPath := strings.TrimPrefix(objectPath, dataPath)
 
+		txn, err := database.NewTxnWithSchema(opts.DB, "storage_console")
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			_, err = w.Write([]byte(err.Error()))
+			if err != nil && opts.LoggerError != nil {
+				opts.LoggerError.Println(fmt.Errorf("failed to create transaction: %s", err))
+			}
+			return
+		}
+
+		defer txn.Rollback()
+
+		objectExistsSQL := `select true from storage_console.objects where key = $1`
+		var found bool
+		err = txn.QueryRowContext(r.Context(), objectExistsSQL, viewPath).Scan(&found)
+		if errors.Is(err, sql.ErrNoRows) {
+			http.Redirect(w, r, "/reload?prefix="+viewPath, http.StatusFound)
+			return
+		}
+		if err != nil {
+			_, err = w.Write([]byte("wow" + err.Error()))
+			if err != nil && opts.LoggerError != nil {
+				opts.LoggerError.Println(fmt.Errorf("failed to get blob details: %s", err))
+			}
+		}
+
 		blobDetailsSQL := `
 select
   blobs.id,
@@ -320,7 +350,7 @@ where key = $1`
 		var lastModified time.Time
 		var md5, contentType string
 		var metaJSON []byte
-		err = opts.DB.QueryRowContext(
+		err = txn.QueryRowContext(
 			r.Context(),
 			blobDetailsSQL,
 			viewPath,
@@ -336,7 +366,7 @@ where key = $1`
 			return
 		}
 
-		var metaData map[string]bool
+		var metaData map[string]string
 		if len(metaJSON) > 0 {
 			err = json.Unmarshal(metaJSON, &metaData)
 			if err != nil {
@@ -354,7 +384,7 @@ where
 order by source, property_type;
 `
 		var props []properties.BlobProperties
-		rows, err := opts.DB.QueryContext(
+		rows, err := txn.QueryContext(
 			r.Context(),
 			blobPropertiesSQL,
 			id,
@@ -397,7 +427,7 @@ order by source, property_type;
 			LastModified           string
 			MD5                    string
 			Size                   string
-			Metadata               map[string]bool
+			Metadata               map[string]string
 			Properties             []properties.BlobProperties
 		}{
 			Opts:                   opts,
@@ -508,7 +538,7 @@ SELECT
 	size,
 	md5,
 	content_types.name AS content_type,
-	COALESCE(blob_metadata.thumbnail, FALSE) as has_thumb
+	(blob_metadata.thumbnail = 'success') as has_thumb
 FROM objects
 LEFT JOIN object_blobs ON object_blobs.object_id = objects.id
 LEFT JOIN blobs ON object_blobs.blob_id = blobs.id

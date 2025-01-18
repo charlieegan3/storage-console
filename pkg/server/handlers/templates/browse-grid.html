@@ -14,7 +14,7 @@
     </div>
   </div>
 
-  <div class="flex flex-wrap">
+  <div class="flex flex-wrap justify-center justify-start-ns">
     {{ range $k, $v := .Entries }} {{ $link := join "" "./?preview=" $v.Name }}
     {{ if $v.IsDir }} {{ $link = join "" "/b/" $v.Key "?view=grid" }} {{ end }}
     <div
@@ -39,9 +39,9 @@
         </a>
         {{ end }}
       </div>
-      <div class="">
+      <div class="mt1 f7 f6-ns">
         <a href="{{ $link }}">{{$v.ShortName}}</a>
-        <span class="muted f6">{{$v.Size}}</span>
+        <span class="muted">{{$v.Size}}</span>
       </div>
     </div>
     {{end}}

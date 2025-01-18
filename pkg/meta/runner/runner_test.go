@@ -148,7 +148,7 @@ func TestRun(t *testing.T) {
 		t.Fatalf("Could not start transaction: %s", err)
 	}
 
-	row := txn.QueryRow(`select count(*) from blob_metadata where thumbnail = TRUE group by thumbnail;`)
+	row := txn.QueryRow(`select count(*) from blob_metadata where thumbnail = 'success' group by thumbnail;`)
 
 	var count int64
 	err = row.Scan(&count)

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"path"
+	"strings"
 
 	"github.com/charlieegan3/storage-console/pkg/database"
 	"github.com/charlieegan3/storage-console/pkg/importer"
@@ -51,17 +52,25 @@ func newMux(opts *handlers.Options) (*http.ServeMux, error) {
 				if err == nil {
 					prefix = r.FormValue("prefix")
 				}
-				if prefix != "" {
-					opts.LoggerInfo.Printf("prefix: %q", prefix)
+			}
+			if queryPrefix := r.URL.Query().Get("prefix"); queryPrefix != "" {
+				prefix = queryPrefix
+			}
+			if prefix != "" {
+				// prefixes will be joined with the dataPath, if the dir is
+				// "", then the path might have a / at the start
+				prefix = strings.TrimLeft(prefix, "/")
 
-					txn, err := database.NewTxnWithSchema(opts.DB, "storage_console")
-					if err != nil {
-						opts.LoggerError.Printf("error creating transaction: %v", err)
+				opts.LoggerInfo.Printf("prefix: %q", prefix)
 
-						return
-					}
+				txn, err := database.NewTxnWithSchema(opts.DB, "storage_console")
+				if err != nil {
+					opts.LoggerError.Printf("error creating transaction: %v", err)
 
-					deleteMetadataStateSQL := `
+					return
+				}
+
+				deleteMetadataStateSQL := `
 with blob_ids as (
     select blobs.id
     from blobs
@@ -73,14 +82,14 @@ delete from blob_metadata
 where blob_id in (select id from blob_ids);
 `
 
-					_, err = txn.Exec(deleteMetadataStateSQL, prefix)
-					if err != nil {
-						opts.LoggerError.Printf("error cleaning state: %v", err)
+				_, err = txn.Exec(deleteMetadataStateSQL, prefix)
+				if err != nil {
+					opts.LoggerError.Printf("error cleaning state: %v", err)
 
-						return
-					}
+					return
+				}
 
-					deletePropertiesStateSQL := `
+				deletePropertiesStateSQL := `
 with blob_ids as (
     select blobs.id
     from blobs
@@ -92,18 +101,17 @@ delete from blob_properties
 where blob_id in (select id from blob_ids);
 `
 
-					_, err = txn.Exec(deletePropertiesStateSQL, prefix)
-					if err != nil {
-						opts.LoggerError.Printf("error cleaning state: %v", err)
+				_, err = txn.Exec(deletePropertiesStateSQL, prefix)
+				if err != nil {
+					opts.LoggerError.Printf("error cleaning state: %v", err)
 
-						return
-					}
+					return
+				}
 
-					err = txn.Commit()
-					if err != nil {
-						opts.LoggerError.Printf("error committing transaction: %v", err)
-						return
-					}
+				err = txn.Commit()
+				if err != nil {
+					opts.LoggerError.Printf("error committing transaction: %v", err)
+					return
 				}
 			}
 

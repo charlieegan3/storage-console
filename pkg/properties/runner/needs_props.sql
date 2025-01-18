@@ -2,29 +2,31 @@ SELECT
     bm.blob_id,
     objects.key,
     blobs.md5,
-    EXISTS (
+    (bm.exif = 'success' AND NOT EXISTS (
         SELECT 1
         FROM blob_properties bp
         WHERE bp.blob_id = bm.blob_id
           AND bp.source = 'exif'
           AND bp.property_type = 'Done'
-    ) AS exif_set,
-    EXISTS (
+          AND bm.exif = 'success'
+    )) AS exif_missing,
+    (bm.color = 'success' AND NOT EXISTS (
         SELECT 1
         FROM blob_properties bp
         WHERE bp.blob_id = bm.blob_id
           AND bp.source = 'color'
           AND bp.property_type = 'Done'
-    ) AS color_set
+          AND bm.color = 'success'
+    )) AS color_missing
 FROM
     blob_metadata bm
 JOIN
-    blobs on bm.blob_id = blobs.id
+    blobs ON bm.blob_id = blobs.id
 JOIN
-    object_blobs on blobs.id = object_blobs.blob_id
+    object_blobs ON blobs.id = object_blobs.blob_id
 JOIN
-    objects on object_blobs.object_id = objects.id
+    objects ON object_blobs.object_id = objects.id
 WHERE
-    bm.exif = TRUE OR bm.color = TRUE
+    bm.exif = 'success' OR bm.color = 'success'
 ORDER BY
     bm.blob_id;
