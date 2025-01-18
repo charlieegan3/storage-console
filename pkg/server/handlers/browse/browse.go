@@ -523,6 +523,18 @@ func renderDir(opts *handlers.Options, mc *minio.Client, tmpl *template.Template
 			}
 		}
 
+		txn, err := database.NewTxnWithSchema(opts.DB, "storage_console")
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			_, err = w.Write([]byte(err.Error()))
+			if err != nil && opts.LoggerError != nil {
+				opts.LoggerError.Println(fmt.Errorf("failed to create transaction: %s", err))
+			}
+			return
+		}
+
+		defer txn.Rollback()
+
 		if len(keys) > 0 {
 			var placeholders string
 			for i := range keys {
@@ -546,7 +558,7 @@ LEFT JOIN content_types ON blobs.content_type_id = content_types.id
 LEFT JOIN blob_metadata ON blobs.id = blob_metadata.blob_id
 WHERE key IN (%s)`, placeholders)
 
-			rows, err := opts.DB.Query(loadMetadataSQL, keys...)
+			rows, err := txn.Query(loadMetadataSQL, keys...)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 
@@ -610,7 +622,7 @@ left join blobs ON object_blobs.blob_id = blobs.id
 left join content_types ON blobs.content_type_id = content_types.id
 group by dir`, sb.String())
 
-			dirSizeRows, err := opts.DB.Query(dirSizeSQL, dirSizeArgs...)
+			dirSizeRows, err := txn.Query(dirSizeSQL, dirSizeArgs...)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 
@@ -645,7 +657,7 @@ group by dir`, sb.String())
 
 		buf := bytes.NewBuffer([]byte{})
 
-		err := tmpl.ExecuteTemplate(buf, "base", struct {
+		err = tmpl.ExecuteTemplate(buf, "base", struct {
 			Opts        *handlers.Options
 			Path        string
 			Entries     []*browseEntry
