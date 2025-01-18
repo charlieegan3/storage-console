@@ -316,20 +316,38 @@ func renderPreview(
 			return
 		}
 
-		defer txn.Rollback()
+		defer func() {
+			err := txn.Commit()
+			if err != nil && opts.LoggerError != nil {
+				opts.LoggerError.Println(fmt.Errorf("failed to commit transaction: %s", err))
+			}
+		}()
 
-		objectExistsSQL := `select true from storage_console.objects where key = $1`
-		var found bool
-		err = txn.QueryRowContext(r.Context(), objectExistsSQL, viewPath).Scan(&found)
+		objectExistsSQL := `select deleted_at from objects where key = $1`
+		var deletedAt sql.NullTime
+		err = txn.QueryRowContext(r.Context(), objectExistsSQL, viewPath).Scan(&deletedAt)
 		if errors.Is(err, sql.ErrNoRows) {
 			http.Redirect(w, r, "/reload?prefix="+viewPath, http.StatusFound)
 			return
 		}
 		if err != nil {
-			_, err = w.Write([]byte("wow" + err.Error()))
+			_, err = w.Write([]byte(err.Error()))
 			if err != nil && opts.LoggerError != nil {
-				opts.LoggerError.Println(fmt.Errorf("failed to get blob details: %s", err))
+				opts.LoggerError.Println(fmt.Errorf("failed to check object exists: %s", err))
 			}
+		}
+
+		if deletedAt.Valid {
+			objectUndeleteSQL := `update objects set deleted_at = NULL where key = $1`
+			_, err = txn.ExecContext(r.Context(), objectUndeleteSQL, viewPath)
+			if err != nil {
+				_, err = w.Write([]byte(err.Error()))
+				if err != nil && opts.LoggerError != nil {
+					opts.LoggerError.Println(fmt.Errorf("failed to undelete object: %s", err))
+				}
+			}
+
+			opts.LoggerInfo.Println(fmt.Sprintf("undeleted object: %s", viewPath))
 		}
 
 		blobDetailsSQL := `
