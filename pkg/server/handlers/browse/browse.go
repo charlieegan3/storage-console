@@ -550,7 +550,7 @@ SELECT
 	size,
 	md5,
 	content_types.name AS content_type,
-	(blob_metadata.thumbnail = 'success') as has_thumb
+	COALESCE(blob_metadata.thumbnail = 'success', FALSE) as has_thumb
 FROM objects
 LEFT JOIN object_blobs ON object_blobs.object_id = objects.id
 LEFT JOIN blobs ON object_blobs.blob_id = blobs.id
